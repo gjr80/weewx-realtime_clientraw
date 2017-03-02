@@ -14,7 +14,7 @@ The *Realtime clientraw* extension can be installed manually or automatically us
 
 **Note:**   Symbolic names are used below to refer to some file location on the weeWX system. These symbolic names allow a common name to be used to refer to a directory that may be different from system to system. The following symbolic names are used below:
 
--   *$DOWNLOAD_ROOT*. The path to the directory containing the downloaded *Realtime gauge-data* extension.
+-   *$DOWNLOAD_ROOT*. The path to the directory containing the downloaded *Realtime clientraw* extension.
     
 -   *$HTML_ROOT*. The path to the directory where weeWX generated reports are saved. This directory is normally set in the *[StdReport]* section of *weewx.conf*. Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_find_things "where to find things") in the weeWX [User's Guide](http://weewx.com/docs/usersguide.htm "User's Guide to the weeWX Weather System") for further information.
     
