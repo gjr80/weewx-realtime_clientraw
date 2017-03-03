@@ -2,11 +2,15 @@
 
 ## Description ##
 
-The *Realtime clientraw* extension is a weeWX extension that generates a loop data based *clientraw.txt* file for near realtime updating of the [Saratoga Weather Website Templates](http://saratoga-weather.org/wxtemplates/index.php "Free Weather Website Templates") dashboard.
+The *Realtime clientraw* extension is a weeWX extension that generates a loop data based *clientraw.txt* file for near realtime updating of the [Saratoga Weather Website templates](http://saratoga-weather.org/wxtemplates/index.php "Free Weather Website Templates") dashboards.
+
+**Note:** The Saratoga dashboards include the standard dashboard included in the Saratoga Weather Website templates and the so called Alternative dashboard. Use of the term *Saratoga dashboards* in this repository is taken to mean both the standard dashboard included in the Saratoga Weather Website templates and the so called Alternative dashboard.  
+
+**Note:** Whilst *clientraw.txt* can be used for a number of purposes other than near realtime updates of the Saratoga dashboards, (eg updating Weather Display Live or Meteotemplate), the *Realtime clientraw* extension has been developed solely for updating the Saratoga dashboards. As such some *clientraw.txt* fields not used by the Saratoga dashboards have not been calculated and consequently the *Realtime clientraw* extension generated *clientraw.txt* may not be suitable for these other purposes. The initial comments in the *rtcr.py* file detail the *clientraw.txt* fields that are not calculated.
 
 ## Pre-Requisites ##
 
-The *Realtime clientraw* extension requires weeWX v3.4.0 or greater. Use of the *Realtime clientraw* extension with the [Saratoga Weather Website Templates](http://saratoga-weather.org/wxtemplates/index.php "Free Weather Website Templates") requires the installation and configuration for use with weeWX of the [Saratoga Weather Website Templates](http://saratoga-weather.org/wxtemplates/index.php "Free Weather Website Templates").
+The *Realtime clientraw* extension requires weeWX v3.4.0 or greater. Use of the *Realtime clientraw* extension with the Saratoga template requires the installation and configuration for use with weeWX of the Saratoga templates.
 
 ## Installation ##
 
