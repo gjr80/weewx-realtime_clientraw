@@ -649,7 +649,7 @@ class RealtimeClientrawThread(threading.Thread):
             self.additional_manager = None
         # initialise our day stats
         self.day_stats = self.db_manager._get_day_summary(time.time())
-        if self.additional_manager:# initialise our day stats from our appTemp source
+        if self.additional_manager:  # initialise our day stats from our appTemp source
             self.additional_day_stats = self.additional_manager._get_day_summary(time.time())
         else:
             self.additional_day_stats = None
@@ -977,13 +977,13 @@ class RealtimeClientrawThread(threading.Thread):
         data[30] = time.strftime('%M', time.localtime(packet['dateTime']))
         # 031 - seconds
         data[31] = time.strftime('%S', time.localtime(packet['dateTime']))
-        #032 - station name
+        # 032 - station name
         hms_string = time.strftime('%H:%M:%S',
                                    time.localtime(packet['dateTime']))
         data[32] = '-'.join([self.location.replace(' ', ''), hms_string])
         # 033 - dallas lightning count - will not implement
         data[33] = 0
-        #034 - Solar Reading - used as 'solar percent' in Saratoga dashboards
+        # 034 - Solar Reading - used as 'solar percent' in Saratoga dashboards
         percent = None
         if 'radiation' in packet and packet['radiation'] is not None:
             if 'maxSolarRad' in packet and packet['maxSolarRad'] is not None:
@@ -1057,7 +1057,7 @@ class RealtimeClientrawThread(threading.Thread):
                                 packet['dateTime'] - self.baro_trend_period,
                                 self.grace)
         data[50] = baro_trend if baro_trend is not None else 0.0
-        # 051-070 incl - windspeed hour 01-20 incl (knots) - will not implement
+        # 051-070 incl - wind speed hour 01-20 incl (knots) - will not implement
         for h in range(0,20):
             data[51+h] = 0.0
         # 071 - maximum wind gust today
@@ -1302,7 +1302,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             _trend = '-1'
         data[143] = _trend
-        #144 - outHumidity trend (logic)
+        # 144 - outHumidity trend (logic)
         hum_vt = ValueTuple(packet['outHumidity'], 'percent', 'group_percent')
         hum_trend = calc_trend('outHumidity', hum_vt, self.db_manager,
                                packet['dateTime'] - self.humidity_trend_period,
@@ -1314,7 +1314,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             _trend = '-1'
         data[144] = _trend
-        #145 - humidex trend (logic)
+        # 145 - humidex trend (logic)
         humidex_vt = ValueTuple(packet['humidex'], 'degree_C', 'group_temperature')
         humidex_trend = calc_trend('humidex', humidex_vt, self.db_manager,
                                    packet['dateTime'] - self.humidex_trend_period,
@@ -1326,7 +1326,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             _trend = '-1'
         data[145] = _trend
-        #146-155 - hour wind direction 01-10 - will not implement
+        # 146-155 - hour wind direction 01-10 - will not implement
         for h in range(0,10):
             data[146+h] = 0.0
         # 156 - leaf wetness
@@ -1361,10 +1361,10 @@ class RealtimeClientrawThread(threading.Thread):
         data[160] = self.latitude
         # 161 -  longitude (-ve for east)
         data[161] = -1 * self.longitude
-        #162 - 9am reset rainfall total (mm)
+        # 162 - 9am reset rainfall total (mm)
         data[162] = self.buffer['rain'].nineam_sum
-        #163 - high day outHumidity
-        #164 - low day outHumidity
+        # 163 - high day outHumidity
+        # 164 - low day outHumidity
         if 'outHumidity' in self.buffer:
             outHumidityTH = self.buffer['outHumidity'].day_max
             outHumidityTL = self.buffer['outHumidity'].day_min
@@ -1403,9 +1403,9 @@ class RealtimeClientrawThread(threading.Thread):
         data[171] = 0.0
         # 172 - Current Cost Channel 6 - will not implement
         data[172] = 0.0
-        #173 - day windrun - ### Fix me
+        # 173 - day windrun - ### Fix me
         data[173] = self.buffer.windrun/1000.0
-        #174 - record end (WD Version)
+        # 174 - record end (WD Version)
         data[174] = '!!EOR!!'
         return data
 
@@ -1641,7 +1641,7 @@ class VectorBuffer(object):
 
     default_init = (None, None, None, None)
 
-    def __init__(self, history=False, sum=False):
+    def __init__(self, stats, history=False, sum=False):
         self.last = None
         self.lasttime = None
         if stats:
@@ -1818,7 +1818,6 @@ class ScalarBuffer(object):
                 self.day_sum = 0.0
             self.nineam_sum = 0.0
             self.interval_sum = 0.0
-
 
     def add_value(self, val, ts, hilo, history, sum):
         """Add a value to my hilo and history stats as required."""
