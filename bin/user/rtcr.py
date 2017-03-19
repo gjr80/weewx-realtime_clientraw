@@ -1756,8 +1756,9 @@ class VectorBuffer(object):
             age: the max age of the records being searched
 
         Returns:
-            An object of type ObsTuple where value is a 3 way tuple of (value, x component, y comentent) and
-            ts is the timestamp when it ocurred.
+            An object of type ObsTuple where value is a 3 way tuple of
+            (value, x component, y component) and ts is the timestamp when it
+            occurred.
         """
 
         born = ts - age
@@ -2028,7 +2029,7 @@ class RtcrBuffer(dict):
             self[obs].nineam_reset()
 
 
-#===============================================================================
+# ============================================================================
 #                            Configuration dictionaries
 # ============================================================================
 
@@ -2037,7 +2038,6 @@ init_dict = ListOfDicts({'windSpeed': ScalarBuffer})
 init_dict = ListOfDicts({'windSpeed' : ScalarBuffer})
 add_functions = ListOfDicts({'windSpeed': RtcrBuffer.add_wind_value})
 seed_functions = ListOfDicts({'windSpeed': RtcrBuffer.seed_vector})
-
 
 
 # ============================================================================
