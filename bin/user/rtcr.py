@@ -18,11 +18,27 @@
 # You should have received a copy of the GNU General Public License along with
 # this program.  If not, see http://www.gnu.org/licenses/.
 #
-# Version: 0.1                                        Date: 3 March 2017
+# Version: 0.2.0                                        Date: 19 March 2017
 #
 # Revision History
-#  3 March 2017         v0.1    - initial release
+#   19 March 2017       v0.2.0  - added trend period config options, reworked
+#                                 trend field calculations
+#                               - buffer object is now seeded on startup
+#                               - added support for 9am rain reset total
+#                               - binding used for appTemp data is now set
+#                                 by additional_binding config option
+#                               - added comments details supported fields as
+#                                 well as fields required by Saratoga dashboard
+#                                 and Alternative dashboard
+#                               - now calculates maxSolarRad if pyphem is
+#                                 present
+#                               - maxSolarRad algorithm now selectable through
+#                                 config options
+#                               - removed a number of unused buffer object
+#                                 properties
+#   3 March 2017        v0.1.0  - initial release
 #
+
 """The RealtimeClientraw service generates a loop based clientraw.txt that can
 be used to update the Saratoga Weather Web Templates dashboard and the
 Alternative dashboard in near real time.
@@ -66,8 +82,8 @@ Abbreviated instructions for use:
     period). Optional, default is 0.
     min_interval =
 
-    # Binding to use for appTemp data. Optional, default 'wx_binding'.
-    apptemp_binding = wx_binding
+    # Binding to use for appTemp data. Optional, default None.
+    additional_binding = None
 
     # Update windrun value each loop period or just on each archive period.
     # Optional, default is False.
@@ -80,6 +96,14 @@ Abbreviated instructions for use:
 
     avgspeed_period = 300
     gust_period = 300
+
+    # Period in seconds over which to calculate trends. Anecdotally,
+    # clientraw.txt appears to use 1 hour for each but barometer trends are
+    # commonly calculated over a 3 hour period. Optional, default is 3600.
+    baro_trend_period = 3600
+    temp_trend_period = 3600
+    humidity_trend_period = 3600
+    humidex_trend_period = 3600
 
 4.  Add the RealtimeClientraw service to the list of report services under
 [Engines] [[WxEngine]] in weewx.conf:
@@ -96,30 +120,43 @@ Abbreviated instructions for use:
 To do:
     - seed RtcrBuffer day stats properties with values from daily summaries on
       startup
-    - check calculation of 002 - gust
-    - check format of 032 - station name
-    - check calculation of 050 - barometer trend
+    - *check calculation of 002 - gust
+    - *check calculation of 008 - month rain
+    - *check calculation of 009 - year rain
+    - *check format of 032 - station name
+    - *check calculation of 050 - barometer trend
     - check calculation of 143 - outTemp trend trend
     - check calculation of 144 - outHumidity trend trend
     - check calculation of 145 - humidex trend trend
 
 Fields to implemented/finalised:
-    - 002 - gust. What should be used as the source if
+    - *002 - gust. What should be used as the source if
       gust_period == 0, self.buffer['windSpeed'].last or packet['windSpeed']
       (ie the cached value)?
-    - 008 - month rain.
-    - 009 - year rain.
     - 015 - forecast icon.
-    - 034 - solar reading. Need to calculate maxSolarRad if it does not exist
-      and we know how.
-    - 048 - icon type.
-    - 049 - weather description.
-    - 113 - maximum average speed. What is the definition? Over what period?
+    - *048 - icon type.
+    - *049 - weather description.
+    - *090 - temperature 1 hour ago.
+    - *113 - maximum average speed. What is the definition? Over what period?
     - 117 - wind average direction.
     - 133 - maximum windGust last hour. Is it even used? Might not implement.
     - 134 - maximum windGust in last hour time. Refer 133.
     - 162 - 9am reset rainfall total.
-    - 173 - day windrun.
+    - #173 - day windrun.
+
+Saratoga Dashboard
+    - fields required:
+        0, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 19, 29, 30, 31, 32, 34, 35, 36, 44,
+        45, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75, 76, 77, 78, 79, 90, 110,
+        111, 112, 113, 127, 130, 131, 132, 135, 136, 137, 138, 139, 140, 141
+    - fields to be implemented/finalised in order to support:
+        2, 8, 9, 48, 49, 90, 113
+
+Alternative Dashboard
+    - fields required (Saratoga fields plus):
+        1, 12, 13, #114, #115, #116, #118, #119, 156, 159, 160, 173
+    - fields to be implemented/finalised in order to support:
+        2, 8, 9, 48, 49, 90, 113, 114, 115, 116, 118, 119, 173
 """
 
 # python imports
@@ -127,6 +164,7 @@ import Queue
 import datetime
 import math
 import os.path
+import sys
 import syslog
 import threading
 import time
@@ -141,10 +179,10 @@ import weewx.units
 import weewx.wxformulas
 from weewx.engine import StdService
 from weewx.units import ValueTuple, convert, getStandardUnitType, ListOfDicts
-from weeutil.weeutil import to_bool
+from weeutil.weeutil import to_bool, to_int
 
 # version number of this script
-RTCR_VERSION = '0.1'
+RTCR_VERSION = '0.2.0'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -375,7 +413,7 @@ class RealtimeClientraw(StdService):
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
-            result['yest_rain_vt'] = ValueTuple(None, None, None)
+            result['yest_rain_vt'] = ValueTuple(0.0, unit, group)
         else:
             result['yest_rain_vt'] = ValueTuple(_row[0], unit, group)
 
@@ -392,7 +430,7 @@ class RealtimeClientraw(StdService):
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
-            result['month_rain_vt'] = ValueTuple(None, None, None)
+            result['month_rain_vt'] = ValueTuple(0.0, unit, group)
         else:
             result['month_rain_vt'] = ValueTuple(_row[0], unit, group)
 
@@ -409,7 +447,7 @@ class RealtimeClientraw(StdService):
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
-            result['year_rain_vt'] = ValueTuple(None, None, None)
+            result['year_rain_vt'] = ValueTuple(0.0, unit, group)
         else:
             result['year_rain_vt'] = ValueTuple(_row[0], unit, group)
 
@@ -497,16 +535,12 @@ class RealtimeClientrawThread(threading.Thread):
         # if we have a binding we can use it. Check if an appTemp binding was
         # specified, if so use it, otherwise default to 'wx_binding'. We will
         # check for data existence before using it.
-        self.apptemp_binding = rtcr_config_dict.get('apptemp_binding',
-                                                    'wx_binding')
+        self.additional_binding = rtcr_config_dict.get('additional_binding', None)
 
-        # create a RtcrBuffer object to hold our loop 'stats'
-        self.buffer = RtcrBuffer()
         # initialise day_oy_year property so when know when it's a new day
         self.dow = None
 
         # initialise some properties used to hold archive period wind data
-        self.windDirAvg = None
         self.min_barometer = None
         self.max_barometer = None
 
@@ -544,6 +578,42 @@ class RealtimeClientrawThread(threading.Thread):
         # leaf wetness
         self.leaf_wet = extra_sensor_config_dict.get('leafWet', None)
 
+        # set trend periods
+        self.baro_trend_period = to_int(rtcr_config_dict.get('baro_trend_period',
+                                                             3600))
+        self.temp_trend_period = to_int(rtcr_config_dict.get('temp_trend_period',
+                                                             3600))
+        self.humidity_trend_period = to_int(rtcr_config_dict.get('humidity_trend_period',
+                                                             3600))
+        self.humidex_trend_period = to_int(rtcr_config_dict.get('humidex_trend_period',
+                                                             3600))
+
+        # ?
+        self.new_day = False
+
+        # check to see whether module 'ephem' is installed, without it we can't
+        # calculate maxSolarRad
+        self.has_ephem = 'ephem' in sys.modules
+        # setup max solar rad calcs
+        # do we have any?
+        calc_dict = config_dict.get('Calculate', {})
+        # algorithm
+        algo_dict = calc_dict.get('Algorithm', {})
+        self.solar_algorithm = algo_dict.get('maxSolarRad', 'RS')
+        # atmospheric transmission coefficient [0.7-0.91]
+        self.atc = float(calc_dict.get('atc', 0.8))
+        # Fail hard if out of range:
+        if not 0.7 <= self.atc <= 0.91:
+            raise weewx.ViolatedPrecondition("Atmospheric transmission "
+                                             "coefficient (%f) out of "
+                                             "range [.7-.91]" % self.atc)
+        # atmospheric turbidity (2=clear, 4-5=smoggy)
+        self.nfac = float(calc_dict.get('nfac', 2))
+        # Fail hard if out of range:
+        if not 2 <= self.nfac <= 5:
+            raise weewx.ViolatedPrecondition("Atmospheric turbidity (%d) "
+                                             "out of range (2-5)" % self.nfac)
+
         if self.min_interval is None:
             _msg = "RealtimeClientraw will generate clientraw.txt. "\
                        "min_interval is None"
@@ -570,13 +640,20 @@ class RealtimeClientrawThread(threading.Thread):
         # get a db manager
         self.db_manager = weewx.manager.open_manager(self.manager_dict)
         # get a db manager for appTemp
-        self.apptemp_manager = weewx.manager.open_manager_with_config(self.config_dict,
-                                                                      self.apptemp_binding)
+        if self.additional_binding:
+            self.additional_manager = weewx.manager.open_manager_with_config(self.config_dict,
+                                                                             self.additional_binding)
+        else:
+            self.additional_manager = None
         # initialise our day stats
         self.day_stats = self.db_manager._get_day_summary(time.time())
-        # initialise our day stats from our appTemp source
-        self.apptemp_day_stats = self.apptemp_manager._get_day_summary(time.time())
-
+        if self.additional_manager:# initialise our day stats from our appTemp source
+            self.additional_day_stats = self.additional_manager._get_day_summary(time.time())
+        else:
+            self.additional_day_stats = None
+        # create a RtcrBuffer object to hold our loop 'stats'
+        self.buffer = RtcrBuffer(day_stats=self.day_stats,
+                                 additional_day_stats=self.additional_day_stats)
         # setup our loop cache and set some starting wind values
         _ts = self.db_manager.lastGoodStamp()
         if _ts is not None:
@@ -589,11 +666,6 @@ class RealtimeClientrawThread(threading.Thread):
         logdbg2("rtcrthread", "initialising loop packet cache ...")
         self.packet_cache = CachedPacket(_rec)
         logdbg2("rtcrthread", "loop packet cache initialised")
-        # save the windSpeed value to use as our archive period average, this
-        # needs to be a ValueTuple since we may need to convert units
-        # save the windDir value to use as our archive period average
-        if 'windDir' in _rec:
-            self.windDirAvg = _rec['windDir']
 
         # now run a continuous loop, waiting for records to appear in the rtcr
         # queue then processing them.
@@ -655,8 +727,18 @@ class RealtimeClientrawThread(threading.Thread):
         # buffer day stats
         dow = time.strftime('%w', time.localtime(packet_wx['dateTime']))
         if self.dow is not None and self.dow != dow:
+            self.new_day = True
             self.buffer.start_of_day_reset()
         self.dow = dow
+
+        # if this is the first packet after 9am we need to reset any 9am sums
+        # first get the current hour as an int
+        _hour = int(time.strftime('%w', time.localtime(packet_wx['dateTime'])))
+        # if its a new day and hour>=9 we need to reset any 9am sums
+        if self.new_day and _hour >= 9:
+            self.new_day = False
+            self.buffer.nineam_reset()
+
         # now add the packet to our buffer
         self.buffer.add_packet(packet_wx)
 
@@ -696,6 +778,24 @@ class RealtimeClientrawThread(threading.Thread):
         if package is not None:
             for key, value in package.iteritems():
                 setattr(self, key, value)
+
+    def new_archive_record(self, record):
+        """Control processing when new a archive record is presented.
+
+        When a new archive record is available our interest is in the updated
+        daily summaries.
+        """
+
+        # refresh our day (archive record based) stats
+        self.day_stats = self.db_manager._get_day_summary(record['dateTime'])
+        if self.additional_manager:
+            self.additional_day_stats = self.additional_manager._get_day_summary(record['dateTime'])
+
+    def end_archive_period(self):
+        """Control processing at the end of each archive period."""
+
+        for obs in SUM_MANIFEST:
+            self.buffer[obs].interval_reset()
 
     def write_data(self, data):
         """Write the clientraw.txt file.
@@ -762,19 +862,27 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             dayRain = None
         data[7] = dayRain if dayRain is not None else 0.0
-        #008 - monthly rain - ### fix me - inaccurate
+#        #008 - monthly rain
         month_rain_vt = getattr(self, 'month_rain_vt',
                                 ValueTuple(0, 'mm', 'group_rain'))
         month_rain = convert(month_rain_vt, 'mm').value
         if month_rain and 'rain' in self.buffer:
-            month_rain += self.buffer['rain'].day_sum
+            month_rain += self.buffer['rain'].interval_sum
+        elif 'rain' in self.buffer:
+            month_rain = self.buffer['rain'].interval_sum
+        else:
+            month_rain = None
         data[8] = month_rain if month_rain is not None else 0.0
-        #009 - yearly rain - ### fix me - inaccurate
+#        #009 - yearly rain
         year_rain_vt = getattr(self, 'year_rain_vt',
                                 ValueTuple(0, 'mm', 'group_rain'))
         year_rain = convert(year_rain_vt, 'mm').value
         if year_rain and 'rain' in self.buffer:
-            year_rain += self.buffer['rain'].day_sum
+            year_rain += self.buffer['rain'].interval_sum
+        elif 'rain' in self.buffer:
+            year_rain = self.buffer['rain'].interval_sum
+        else:
+            year_rain = None
         data[9] = year_rain if year_rain is not None else 0.0
         #010 - rain rate (mm per minute - not hour)
         data[10] = packet['rainRate']/60.0 if packet['rainRate'] is not None else 0.0
@@ -874,11 +982,29 @@ class RealtimeClientrawThread(threading.Thread):
         #033 - dallas lightning count - will not implement
         data[33] = 0
         #034 - Solar Reading - used as 'solar percent' in Saratoga dashboards
-        ### Fix me - calculate maxSolarRad if we can
         percent = None
         if 'radiation' in packet and packet['radiation'] is not None:
             if 'maxSolarRad' in packet and packet['maxSolarRad'] is not None:
                 percent = 100.0 * packet['radiation']/packet['maxSolarRad']
+            elif self.has_ephem:
+                # pyephem is installed so we can calculate maxSolarRad, how we
+                # do it depends
+                if self.solar_algorithm == 'Bras':
+                    curr_solar_max = weewx.wxformulas.solar_rad_Bras(self.latitude,
+                                                                     self.longitude,
+                                                                     self.altitude_m,
+                                                                     packet['dateTime'],
+                                                                     self.nfac)
+                else:
+                    curr_solar_max = weewx.wxformulas.solar_rad_RS(self.latitude,
+                                                                   self.longitude,
+                                                                   self.altitude_m,
+                                                                   packet['dateTime'],
+                                                                   self.atc)
+                if curr_solar_max is not None:
+                    percent = 100.0 * packet['radiation']/curr_solar_max
+                else:
+                    curr_solar_max = None
         data[34] = percent if percent is not None else 0.0
         #035 - Day
         data[35] = time.strftime('%-d', time.localtime(packet['dateTime']))
@@ -1161,21 +1287,39 @@ class RealtimeClientrawThread(threading.Thread):
         data[141] = time.strftime('%Y', time.localtime(packet['dateTime']))
         #142 - THSWS - will not implement
         data[142] = 0.0
-#        #143 - outTemp trend (logic)
+        #143 - outTemp trend (logic)
         temp_vt = ValueTuple(packet['outTemp'], 'degree_C', 'group_temperature')
         temp_trend = calc_trend('outTemp', temp_vt, self.db_manager,
-                                packet['dateTime'] - 1200)
-        data[143] = '0' if temp_trend is None else '+1' if temp_trend > 0 else '-1'
-#        #144 - outHumidity trend (logic)
+                                packet['dateTime'] - self.temp_trend_period)
+        if temp_trend is None or temp_trend == 0:
+            _trend = '0'
+        elif temp_trend > 0:
+            _trend = '+1'
+        else:
+            _trend = '-1'
+        data[143] = _trend
+        #144 - outHumidity trend (logic)
         hum_vt = ValueTuple(packet['outHumidity'], 'percent', 'group_percent')
         hum_trend = calc_trend('outHumidity', hum_vt, self.db_manager,
-                                packet['dateTime'] - 1200)
-        data[144] = '0' if hum_trend is None else '+1' if hum_trend > 0 else '-1'
-#        #145 - humidex trend (logic)
+                                packet['dateTime'] - self.humidity_trend_period)
+        if hum_trend is None or hum_trend == 0:
+            _trend = '0'
+        elif hum_trend > 0:
+            _trend = '+1'
+        else:
+            _trend = '-1'
+        data[144] = _trend
+        #145 - humidex trend (logic)
         humidex_vt = ValueTuple(packet['humidex'], 'degree_C', 'group_temperature')
         humidex_trend = calc_trend('humidex', humidex_vt, self.db_manager,
-                                packet['dateTime'] - 1200)
-        data[145] = '0' if humidex_trend is None else '+1' if humidex_trend > 0 else '-1'
+                                packet['dateTime'] - self.humidex_trend_period)
+        if humidex_trend is None or humidex_trend == 0:
+            _trend = '0'
+        elif humidex_trend > 0:
+            _trend = '+1'
+        else:
+            _trend = '-1'
+        data[145] = _trend
         #146-155 - hour wind direction 01-10 - will not implement
         for h in range(0,10):
             data[146+h] = 0.0
@@ -1479,23 +1623,6 @@ class RealtimeClientrawThread(threading.Thread):
                 pass
         return str(result)
 
-    def new_archive_record(self, record):
-        """Control processing when new a archive record is presented."""
-
-        # save the windDir value to use as our archive period average
-        if 'windDir' in record:
-            self.windDirAvg = record['windDir']
-        else:
-            self.windDirAvg = None
-        # refresh our day (archive record based) stats
-        self.day_stats = self.db_manager._get_day_summary(record['dateTime'])
-        self.apptemp_day_stats = self.apptemp_manager._get_day_summary(record['dateTime'])
-
-    def end_archive_period(self):
-        """Control processing at the end of each archive period."""
-
-        pass
-
 
 # ============================================================================
 #                             class VectorBuffer
@@ -1507,16 +1634,27 @@ class VectorBuffer(object):
 
     default_init = (None, None, None, None)
 
-    def __init__(self, history=False, sum=False):
+    def __init__(self, stats, history=False, sum=False):
         self.last     = None
         self.lasttime = None
-        (self.day_min, self.day_mintime,
-         self.day_max, self.day_maxtime) = ScalarBuffer.default_init
+        if stats:
+            self.day_min = stats.min
+            self.day_mintime = stats.mintime
+            self.day_max = stats.max
+            self.day_maxtime = stats.maxtime
+        else:
+            (self.day_min, self.day_mintime,
+             self.day_max, self.day_maxtime) = VectorBuffer.default_init
         if history:
             self.history = []
             self.history_full = False
         if sum:
-            self.day_sum = 0.0
+            if stats:
+                self.day_sum = stats.sum
+            else:
+                self.day_sum = 0.0
+            self.nineam_sum = 0.0
+            self.interval_sum = 0.0
 
     def _add_value(self, val, ts, hilo, history, sum):
         """Add a value to my hilo and history stats as required."""
@@ -1555,6 +1693,16 @@ class VectorBuffer(object):
             self.day_sum = 0.0
         except AttributeError:
             pass
+
+    def nineam_reset(self):
+        """Reset the vector obs buffer."""
+
+        self.nineam_sum = 0.0
+
+    def interval_reset(self):
+        """Reset the vector obs buffer."""
+
+        self.interval_sum = 0.0
 
     def trim_history(self, ts):
         """Trim an old data from the history list."""
@@ -1641,16 +1789,28 @@ class ScalarBuffer(object):
 
     default_init = (None, None, None, None)
 
-    def __init__(self, history=False, sum=False):
+    def __init__(self, stats, history=False, sum=False):
         self.last     = None
         self.lasttime = None
-        (self.day_min, self.day_mintime,
-         self.day_max, self.day_maxtime) = ScalarBuffer.default_init
+        if stats:
+            self.day_min = stats.min
+            self.day_mintime = stats.mintime
+            self.day_max = stats.max
+            self.day_maxtime = stats.maxtime
+        else:
+            (self.day_min, self.day_mintime,
+             self.day_max, self.day_maxtime) = ScalarBuffer.default_init
         if history:
             self.history = []
             self.history_full = False
         if sum:
-            self.day_sum = 0.0
+            if stats:
+                self.day_sum = stats.sum
+            else:
+                self.day_sum = 0.0
+            self.nineam_sum = 0.0
+            self.interval_sum = 0.0
+
 
     def _add_value(self, val, ts, hilo, history, sum):
         """Add a value to my hilo and history stats as required."""
@@ -1671,6 +1831,8 @@ class ScalarBuffer(object):
                 self.trim_history(ts)
             if sum:
                 self.day_sum += val
+                self.nineam_sum += val
+                self.interval_sum += val
 
     def day_reset(self):
         """Reset the scalar obs buffer."""
@@ -1681,6 +1843,16 @@ class ScalarBuffer(object):
             self.day_sum = 0.0
         except AttributeError:
             pass
+
+    def nineam_reset(self):
+        """Reset the scalar obs buffer."""
+
+        self.nineam_sum = 0.0
+
+    def interval_reset(self):
+        """Reset the scalar obs buffer."""
+
+        self.interval_sum = 0.0
 
     def trim_history(self, ts):
         """Trim an old data from the history list."""
@@ -1753,10 +1925,42 @@ class RtcrBuffer(dict):
     received.
     """
 
-    def __init__(self, unit_system=weewx.METRICWX):
+    def __init__(self, day_stats, additional_day_stats=None, unit_system=weewx.METRICWX):
         """Initialise an instance of our class."""
 
+        # seed our buffer objects from day_stats
+        for obs in [f for f in day_stats if f in MANIFEST]:
+            seed_func = seed_functions.get(obs, RtcrBuffer.seed_scalar)
+            seed_func(self, day_stats[obs], obs,
+                      obs in HIST_MANIFEST,
+                      obs in SUM_MANIFEST)
+        # seed our buffer objects from additional_day_stats
+        if additional_day_stats:
+            for obs in [f for f in additional_day_stats if f in MANIFEST]:
+                if obs not in self:
+                    seed_func = seed_functions.get(obs, RtcrBuffer.seed_scalar)
+                    seed_func(self, additional_day_stats[obs], obs, obs in HILO_MANIFEST,
+                              obs in HIST_MANIFEST, obs in SUM_MANIFEST)
         self.unit_system = unit_system
+
+    def seed_scalar(self, stats, obs_type, hist, sum):
+        """Seed a scalar buffer."""
+
+        self[obs_type] = init_dict.get(obs_type, ScalarBuffer)(stats=stats,
+                                                               history=hist,
+                                                               sum=sum)
+
+    def seed_vector(self, stats, obs_type, hist, sum):
+        """Seed a vector buffer."""
+
+        # first seed as a scalar
+        self[obs_type] = init_dict.get(obs_type, ScalarBuffer)(stats=stats,
+                                                               history=hist,
+                                                               sum=sum)
+        # now seed as vector 'wind'
+        self['wind'] = init_dict.get(obs_type, VectorBuffer)(stats=stats,
+                                                             history=True,
+                                                             sum=False)
 
     def add_packet(self, packet):
         """Add a packet to the buffer."""
@@ -1772,11 +1976,11 @@ class RtcrBuffer(dict):
         """Add a value to the buffer."""
 
         if obs_type not in self:
-            self[obs_type] = init_dict.get(obs_type, ScalarBuffer)(obs_type in HIST_MANIFEST,
-                                                                   obs_type in SUM_MANIFEST)
+            self[obs_type] = init_dict.get(obs_type, ScalarBuffer)(stats=None,
+                                                                   history=hist,
+                                                                   sum=sum)
         self[obs_type]._add_value(packet[obs_type], packet['dateTime'],
-                                 obs_type in HILO_MANIFEST, obs_type in HIST_MANIFEST,
-                                 obs_type in SUM_MANIFEST)
+                                  hilo, hist, sum)
 
     def add_wind_value(self, packet, obs_type, hilo, hist, sum):
         """Add a wind value to the buffer."""
@@ -1785,10 +1989,9 @@ class RtcrBuffer(dict):
         self.add_value(packet, obs_type, hilo, hist, sum)
 
         if 'wind' not in self:
-            self['wind'] = VectorBuffer(history=True)
+            self['wind'] = VectorBuffer(stats=None, history=True)
         self['wind']._add_value((packet.get('windSpeed'), packet.get('windDir')),
-                               packet['dateTime'],
-                               False, True, False)
+                                packet['dateTime'], False, True, False)
 
     def clean(self, ts):
         """Clean out any old obs from the buffer history."""
@@ -1810,100 +2013,15 @@ class RtcrBuffer(dict):
         for obs in MANIFEST:
             self[obs].day_reset()
 
-    # def tenMinuteAverageWindDir(self):
-        # """ Calculate average wind direction over the last 10 minutes.
+    def nineam_reset(self):
+        """Reset our buffer stats at the end of an archive period.
 
-        # Takes list of last 10 minutes of loop wind speed and direction data and
-        # calculates a vector average direction.
-        # Result is only considered valid if a full 10 minutes of loop wind data
-        # is held. self.tenMinuteWind_valid is used to check whether the result
-        # is valid or not.
+        Reset our hi/lo data but don't touch the history, it might need to be
+        kept longer than the end of the archive period.
+        """
 
-        # Inputs:
-            # Nothing
-
-        # Returns:
-            # 10 minute vector average wind direction
-        # """
-
-        # if self.tenMinuteWind_valid:
-            # if len(self.wind_dir_list) > 0:
-                # avg_dir = 90.0 - math.degrees(math.atan2(sum(y for x,y,s,d,t in self.wind_dir_list),
-                                                         # sum(x for x,y,s,d,t in self.wind_dir_list)))
-                # avg_dir = avg_dir if avg_dir > 0 else avg_dir + 360.0
-            # else:
-                # avg_dir = None
-        # else:
-            # avg_dir = None
-        # return avg_dir
-
-    # def setLowsAndHighs(self, packet):
-        # """ Update loop highs and lows with new loop data.
-
-        # Almost operates as a mini weeWX accumulator but wind data is stored in
-        # lists to allow samples to be added at one end and old samples dropped
-        # at the other end.
-
-        # -   Look at each loop packet and update lows and highs as required.
-        # -   Add wind speed/direction data to archive_interval and 10 minute
-            # lists used for average and 10 minute wind stats
-
-        # Inputs:
-            # packet: loop data packet
-
-        # Returns:
-            # Nothing but updates various low/high stats and 'archive interval'
-            # and 10 minute wind data lists
-        # """
-
-        # packet_d = dict(packet)
-        # ts = packet_d['dateTime']
-
-
-        # # process windSpeed/windDir
-        # # if windDir exists then get it, if it does not exist get None
-        # windDir = packet_d.get('windDir', None)
-        # # if windSpeed exists get it, if it does not exist or is None then
-        # # get 0.0
-        # windSpeed = packet_d.get('windSpeed', 0.0)
-        # windSpeed = 0.0 if windSpeed is None else windSpeed
-        # self.windsum += windSpeed
-        # self.windcount += 1
-        # # Have we seen a new high gust? If so update self.wgustM_loop but only
-        # # if we have a corresponding wind direction
-        # if windSpeed > self.wgustM_loop[0] and windDir is not None:
-            # self.wgustM_loop = [windSpeed, windDir, ts]
-        # # average wind speed
-        # self.wind_list.append([windSpeed, ts])
-        # # if we have samples in our list then delete any too old
-        # if len(self.wind_list) > 0:
-            # # calc ts of oldest sample we want to retain
-            # old_ts = ts - self.wind_period
-            # # if we have (archive_interval) of data in our list set flag that
-            # # averageWind result is valid
-            # self.averageWind_valid = self.wind_list[0][1] <= old_ts
-            # # Remove any samples older than 5 minutes
-            # self.wind_list = [s for s in self.wind_list if s[1] > old_ts]
-        # # get our latest (archive_interval) average wind
-        # windM_loop = self.averageWind() if self.averageWind_valid else 0.0
-        # # have we seen a new high (archive_interval) avg wind? if so update
-        # # self.windM_loop
-        # self.windM_loop = [windM_loop, ts] if windM_loop > self.windM_loop[0] else self.windM_loop
-        # # Update the 10 minute wind direction list, but only if windDir is not
-        # # None
-        # if windDir is not None:
-            # self.wind_dir_list.append([windSpeed * math.cos(math.radians(90.0 - windDir)),
-                                      # windSpeed * math.sin(math.radians(90.0 - windDir)),
-                                      # windSpeed, windDir, ts])
-        # # if we have samples in our list then delete any too old
-        # if len(self.wind_dir_list) > 0:
-            # # calc ts of oldest sample we want to retain
-            # old_ts = ts - self.wind_period
-            # # if we have 10 minutes of data in our list set flag that
-            # # calcTenMinuteAverageWindDir result is valid
-            # self.tenMinuteWind_valid = self.wind_dir_list[0][4] <= old_ts
-            # # Remove any samples older than 10 minutes
-            # self.wind_dir_list = [s for s in self.wind_dir_list if s[4] > old_ts]
+        for obs in SUM:
+            self[obs].nineam_reset()
 
 
 #===============================================================================
@@ -1911,12 +2029,14 @@ class RtcrBuffer(dict):
 #===============================================================================
 
 init_dict = ListOfDicts({'windSpeed' : ScalarBuffer})
-
 add_functions = ListOfDicts({'windSpeed': RtcrBuffer.add_wind_value})
+seed_functions = ListOfDicts({'windSpeed': RtcrBuffer.seed_vector})
+
 
 # ============================================================================
 #                              class ObsTuple
 # ============================================================================
+
 
 # A observation during some period can be represented by the value of the
 # observation and the time at which it was observed. This can be represented
@@ -2098,7 +2218,7 @@ def calc_trend(obs_type, now_vt, db_manager, then_ts, grace=0):
             return now - then
 
 def calc_wetbulb(Ta, RH, P):
-    """ Calculate wet bulb temperature.
+    """Calculate wet bulb temperature.
 
         Uses formula:
 
