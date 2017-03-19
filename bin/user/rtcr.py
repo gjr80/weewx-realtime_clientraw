@@ -105,6 +105,9 @@ Abbreviated instructions for use:
     humidity_trend_period = 3600
     humidex_trend_period = 3600
 
+    # Largest acceptable diffference in seconds between ... when searchin ghte archive. Optional, default is 200.
+    grace = 200
+
 4.  Add the RealtimeClientraw service to the list of report services under
 [Engines] [[WxEngine]] in weewx.conf:
 
@@ -124,10 +127,6 @@ To do:
     - *check calculation of 008 - month rain
     - *check calculation of 009 - year rain
     - *check format of 032 - station name
-    - *check calculation of 050 - barometer trend
-    - check calculation of 143 - outTemp trend trend
-    - check calculation of 144 - outHumidity trend trend
-    - check calculation of 145 - humidex trend trend
 
 Fields to implemented/finalised:
     - *002 - gust. What should be used as the source if
@@ -141,7 +140,6 @@ Fields to implemented/finalised:
     - 117 - wind average direction.
     - 133 - maximum windGust last hour. Is it even used? Might not implement.
     - 134 - maximum windGust in last hour time. Refer 133.
-    - 162 - 9am reset rainfall total.
     - #173 - day windrun.
 
 Saratoga Dashboard
@@ -153,7 +151,7 @@ Saratoga Dashboard
         2, 8, 9, 48, 49, 90, 113
 
 Alternative Dashboard
-    - fields required (Saratoga fields plus):
+    - fields required (Saratoga fields plus)(#=will not implememnt):
         1, 12, 13, #114, #115, #116, #118, #119, 156, 159, 160, 173
     - fields to be implemented/finalised in order to support:
         2, 8, 9, 48, 49, 90, 113, 114, 115, 116, 118, 119, 173
@@ -197,8 +195,11 @@ HIST_MANIFEST = ['windSpeed', 'windDir']
 # obs for which we need a running sum
 SUM_MANIFEST = ['rain']
 MAX_AGE = 600
-AVGSPEED_PERIOD = 300
-GUST_PERIOD = 300
+DEFAULT_MAX_CACHE_AGE = 600
+DEFAULT_AVGSPEED_PERIOD = 300
+DEFAULT_GUST_PERIOD = 300
+DEFAULT_GRACE = 200
+DEFAULT_TREND_PERIOD = 3600
 
 
 def logmsg(level, msg):
@@ -514,16 +515,20 @@ class RealtimeClientrawThread(threading.Thread):
 
         # some field definition settigns (mainly time periods for averages etc)
         self.avgspeed_period = rtcr_config_dict.get('avgspeed_period',
-                                                    AVGSPEED_PERIOD)
+                                                    DEFAULT_AVGSPEED_PERIOD)
         self.gust_period = rtcr_config_dict.get('gust_period',
-                                                GUST_PERIOD)
+                                                DEFAULT_GUST_PERIOD)
 
         # set some format strings
         self.time_format = '%H:%M'
         self.flag_format = '%.0f'
 
         # get max cache age
-        self.max_cache_age = rtcr_config_dict.get('max_cache_age', 600)
+        self.max_cache_age = to_int(rtcr_config_dict.get('max_cache_age',
+                                                         DEFAULT_MAX_CACHE_AGE))
+
+        # grace
+        self.grace = to_int(rtcr_config_dict.get('grace', DEFAULT_GRACE))
 
         # Are we updating windrun using archive data only or archive and loop
         # data?
@@ -580,13 +585,13 @@ class RealtimeClientrawThread(threading.Thread):
 
         # set trend periods
         self.baro_trend_period = to_int(rtcr_config_dict.get('baro_trend_period',
-                                                             3600))
+                                                             DEFAULT_TREND_PERIOD))
         self.temp_trend_period = to_int(rtcr_config_dict.get('temp_trend_period',
-                                                             3600))
+                                                             DEFAULT_TREND_PERIOD))
         self.humidity_trend_period = to_int(rtcr_config_dict.get('humidity_trend_period',
-                                                             3600))
+                                                             DEFAULT_TREND_PERIOD))
         self.humidex_trend_period = to_int(rtcr_config_dict.get('humidex_trend_period',
-                                                             3600))
+                                                             DEFAULT_TREND_PERIOD))
 
         # ?
         self.new_day = False
@@ -834,7 +839,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             avgspeed = None
         data[1] = avgspeed if avgspeed is not None else 0.0
-#        #002 - gust (knots) - ### fix me - should '.last' be used or cache?
+        #002 - gust (knots) - ### fix me - should '.last' be used or cache?
         if 'windSpeed' in self.buffer:
             if self.gust_period > 0:
                 _gust = self.buffer['windSpeed'].history_max(packet['dateTime'],
@@ -862,7 +867,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             dayRain = None
         data[7] = dayRain if dayRain is not None else 0.0
-#        #008 - monthly rain
+        #008 - monthly rain
         month_rain_vt = getattr(self, 'month_rain_vt',
                                 ValueTuple(0, 'mm', 'group_rain'))
         month_rain = convert(month_rain_vt, 'mm').value
@@ -873,7 +878,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             month_rain = None
         data[8] = month_rain if month_rain is not None else 0.0
-#        #009 - yearly rain
+        #009 - yearly rain
         year_rain_vt = getattr(self, 'year_rain_vt',
                                 ValueTuple(0, 'mm', 'group_rain'))
         year_rain = convert(year_rain_vt, 'mm').value
@@ -975,7 +980,7 @@ class RealtimeClientrawThread(threading.Thread):
         data[30] = time.strftime('%M', time.localtime(packet['dateTime']))
         #031 - seconds
         data[31] = time.strftime('%S', time.localtime(packet['dateTime']))
-#        #032 - station name
+        #032 - station name
         hms_string = time.strftime('%H:%M:%S',
                                    time.localtime(packet['dateTime']))
         data[32] = '-'.join([self.location.replace(' ', ''), hms_string])
@@ -1049,10 +1054,11 @@ class RealtimeClientrawThread(threading.Thread):
         data[48] = 0
         #049 - weather description - ### Fix me
         data[49] = '---'
-#        #050 - barometer trend (hPa)
+        #050 - barometer trend (hPa)
         baro_vt = ValueTuple(packet['barometer'], 'hPa', 'group_pressure')
         baro_trend = calc_trend('barometer', baro_vt, self.db_manager,
-                                packet['dateTime'] - 1200)
+                                packet['dateTime'] - self.baro_trend_period,
+                                self.grace)
         data[50] = baro_trend if baro_trend is not None else 0.0
         #051-070 incl - windspeed hour 01-20 incl (knots) - will not implement
         for h in range(0,20):
@@ -1290,7 +1296,8 @@ class RealtimeClientrawThread(threading.Thread):
         #143 - outTemp trend (logic)
         temp_vt = ValueTuple(packet['outTemp'], 'degree_C', 'group_temperature')
         temp_trend = calc_trend('outTemp', temp_vt, self.db_manager,
-                                packet['dateTime'] - self.temp_trend_period)
+                                packet['dateTime'] - self.temp_trend_period,
+                                self.grace)
         if temp_trend is None or temp_trend == 0:
             _trend = '0'
         elif temp_trend > 0:
@@ -1301,7 +1308,8 @@ class RealtimeClientrawThread(threading.Thread):
         #144 - outHumidity trend (logic)
         hum_vt = ValueTuple(packet['outHumidity'], 'percent', 'group_percent')
         hum_trend = calc_trend('outHumidity', hum_vt, self.db_manager,
-                                packet['dateTime'] - self.humidity_trend_period)
+                               packet['dateTime'] - self.humidity_trend_period,
+                               self.grace)
         if hum_trend is None or hum_trend == 0:
             _trend = '0'
         elif hum_trend > 0:
@@ -1312,7 +1320,8 @@ class RealtimeClientrawThread(threading.Thread):
         #145 - humidex trend (logic)
         humidex_vt = ValueTuple(packet['humidex'], 'degree_C', 'group_temperature')
         humidex_trend = calc_trend('humidex', humidex_vt, self.db_manager,
-                                packet['dateTime'] - self.humidex_trend_period)
+                                   packet['dateTime'] - self.humidex_trend_period,
+                                   self.grace)
         if humidex_trend is None or humidex_trend == 0:
             _trend = '0'
         elif humidex_trend > 0:
@@ -1355,8 +1364,8 @@ class RealtimeClientrawThread(threading.Thread):
         data[160] = self.latitude
         #161 -  longitude (-ve for east)
         data[161] = -1 * self.longitude
-        #162 - 9am reset rainfall total (mm) - ### Fix me
-        data[162] = 0.0
+        #162 - 9am reset rainfall total (mm)
+        data[162] = self.buffer['rain'].nineam_sum
         #163 - high day outHumidity
         #164 - low day outHumidity
         if 'outHumidity' in self.buffer:
@@ -1398,7 +1407,7 @@ class RealtimeClientrawThread(threading.Thread):
         #172 - Current Cost Channel 6 - will not implement
         data[172] = 0.0
         #173 - day windrun - ### Fix me
-        data[173] = 0.0
+        data[173] = self.buffer.windrun/1000.0
         #174 - record end (WD Version)
         data[174] = '!!EOR!!'
         return data
@@ -1942,6 +1951,8 @@ class RtcrBuffer(dict):
                     seed_func(self, additional_day_stats[obs], obs, obs in HILO_MANIFEST,
                               obs in HIST_MANIFEST, obs in SUM_MANIFEST)
         self.unit_system = unit_system
+        self.last_windSpeed_ts = None
+        self.windrun = 0.0
 
     def seed_scalar(self, stats, obs_type, hist, sum):
         """Seed a scalar buffer."""
@@ -1987,6 +1998,14 @@ class RtcrBuffer(dict):
 
         # first add it as 'windSpeed' the scalar
         self.add_value(packet, obs_type, hilo, hist, sum)
+
+        # update todays windrun
+        if 'windSpeed' in packet:
+            try:
+                self.windrun += packet['windSpeed'] * (packet['dateTime'] - self.last_windSpeed_ts)
+            except TypeError:
+                pass
+            self.last_windSpeed_ts = packet['dateTime']
 
         if 'wind' not in self:
             self['wind'] = VectorBuffer(stats=None, history=True)
@@ -2175,7 +2194,7 @@ class CachedPacket():
 # ============================================================================
 
 
-def calc_trend(obs_type, now_vt, db_manager, then_ts, grace=0):
+def calc_trend(obs_type, now_vt, db_manager, then_ts, grace):
     """ Calculate change in an observation over a specified period.
 
     Inputs:
@@ -2200,22 +2219,6 @@ def calc_trend(obs_type, now_vt, db_manager, then_ts, grace=0):
             if then is not None:
                 result = now_vt.value - then
     return result
-
-
-
-    if now_vt.value is None:
-        return None
-    then_record = db_manager.getRecord(then_ts, grace)
-    if then_record is None:
-        return None
-    else:
-        if obs_type not in then_record:
-            return None
-        else:
-            then_vt = weewx.units.as_value_tuple(then_record, obs_type)
-            now = convert(now_vt, group).value
-            then = convert(then_vt, group).value
-            return now - then
 
 def calc_wetbulb(Ta, RH, P):
     """Calculate wet bulb temperature.
