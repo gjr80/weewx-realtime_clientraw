@@ -130,16 +130,12 @@ Abbreviated instructions for use:
 To do:
     - seed RtcrBuffer day stats properties with values from daily summaries on
       startup
+    - is get_minmax_obs() used?
 
 Fields to implemented/finalised:
     - 015 - forecast icon.
     - *048 - icon type.
     - *049 - weather description.
-    - *090 - temperature 1 hour ago.
-    - *113 - maximum average speed. What is the definition? Over what period?
-    - 133 - maximum windGust last hour. Is it even used? Might not implement.
-    - 134 - maximum windGust in last hour time. Refer 133.
-    - #173 - day windrun.
 
 Saratoga Dashboard
     - fields required:
@@ -147,18 +143,18 @@ Saratoga Dashboard
         45, 46, 47, 48, 49, 50, 71, 72, 73, 74, 75, 76, 77, 78, 79, 90, 110,
         111, 112, 113, 127, 130, 131, 132, 135, 136, 137, 138, 139, 140, 141
     - fields to be implemented/finalised in order to support:
-        48, 49, 90, 113
+        48, 49
 
 Alternative Dashboard
     - fields required (Saratoga fields plus)(#=will not implement):
         1, 12, 13, #114, #115, #116, #118, #119, 156, 159, 160, 173
     - fields to be implemented/finalised in order to support:
-        48, 49, 90, 113, 114, 115, 116, 118, 119, 173
+        48, 49
 """
 
 # python imports
 import Queue
-# import datetime
+import datetime
 import httplib
 import math
 import os.path
@@ -175,6 +171,7 @@ from operator import itemgetter
 import weedb
 import weewx
 import weeutil.weeutil
+import weewx.tags
 import weewx.units
 import weewx.wxformulas
 from weewx.engine import StdService
@@ -280,6 +277,12 @@ class RealtimeClientraw(StdService):
                 self.forecast_icon_field = rtcr_config_dict.get('forecast_icon_field', None)
                 self.current_text_field = rtcr_config_dict.get('current_text_field', None)
 
+        # grace
+        self.grace = to_int(rtcr_config_dict.get('grace', DEFAULT_GRACE))
+        
+        # seed our RealtimeClientrawThread object
+        self.queue_stats(int(time.time()))
+        
         # bind ourself to the relevant weeWX events
         self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
@@ -304,8 +307,12 @@ class RealtimeClientraw(StdService):
                     'payload': event.record}
         self.rtcr_queue.put(_package)
         logdbg2("rtcr", "queued archive record: %s" % _package['payload'])
+        self.queue_stats(event.record['dateTime'])
+        
+    def queue_stats(self, ts):
+        
         # get yesterdays rainfall and put in the queue
-        _rain_data = self.get_historical_rain(event.record['dateTime'])
+        _rain_data = self.get_historical_rain(ts)
         # package the data in a dict since this is not the only data we send
         # via the queue
         _package = {'type': 'stats',
@@ -314,7 +321,7 @@ class RealtimeClientraw(StdService):
         logdbg2("rtcr",
                 "queued historical rainfall data: %s" % _package['payload'])
         # get max gust in the last hour and put in the queue
-        _hour_gust = self.get_hour_gust(event.record['dateTime'])
+        _hour_gust = self.get_hour_gust(ts)
         # package the data in a dict since this is not the only data we send
         # via the queue
         _package = {'type': 'stats',
@@ -322,7 +329,16 @@ class RealtimeClientraw(StdService):
         self.rtcr_queue.put(_package)
         logdbg2("rtcr",
                 "queued last hour gust: %s" % _package['payload'])
-
+        # get outTemp 1 hour ago and put in the queue
+        _hour_temp = self.get_hour_ago_temp(ts)
+        # package the data in a dict since this is not the only data we send
+        # via the queue
+        _package = {'type': 'stats',
+                    'payload': _hour_temp}
+        self.rtcr_queue.put(_package)
+        logdbg2("rtcr",
+                "queued outTemp hour ago: %s" % _package['payload'])
+    
     def end_archive_period(self, event):
         """Puts END_ARCHIVE_PERIOD event in the rtcr queue."""
 
@@ -476,6 +492,33 @@ class RealtimeClientraw(StdService):
             result['hour_gust_vt'] = ValueTuple(None, None, None)
         else:
             result['hour_gust_vt'] = ValueTuple(_row[0], unit, group)
+        # now get the time it occurred
+        _sql = "SELECT dateTime FROM %(table_name)s "\
+                   "WHERE dateTime > %(start)s AND dateTime <= %(stop)s AND "\
+                   "windGust = (SELECT MAX(windGust) FROM %(table_name)s "\
+                   "WHERE dateTime > %(start)s and dateTime <= %(stop)s) AND windGust IS NOT NULL"
+        # execute the query
+        _row = self.db_manager.getSql(_sql % inter_dict)
+        if not _row or None in _row:
+            result['hour_gust_ts'] = None
+        else:
+            result['hour_gust_ts'] = _row[0]
+        return result
+        
+    def get_hour_ago_temp(self, ts):
+        """Obtain the outTemp hour ago."""
+        
+        result = {}
+        (unit, group) = weewx.units.getStandardUnitType(self.db_manager.std_unit_system,
+                                                        'outTemp')
+        # get a timestamp for one hour ago
+        ago_dt = datetime.datetime.fromtimestamp(ts) - datetime.timedelta(hours=1)
+        ago_ts =  time.mktime(ago_dt.timetuple())
+        _record  = self.db_manager.getRecord(ago_ts, self.grace)
+        if _record and 'outTemp' in _record:
+            result['hour_ago_outTemp_vt'] = ValueTuple(_record['outTemp'], unit, group)
+        else:
+            result['hour_ago_outTemp_vt'] = ValueTuple(None, None, None)
         return result
 
 
@@ -1190,9 +1233,17 @@ class RealtimeClientrawThread(threading.Thread):
         # 080-089 - hour wind speed 01-10 - will not implement
         for h in range(0, 10):
             data[80+h] = 0.0
-        # 090-099 - hour temperature 01-10 (Celsius) - will not implement
-        for h in range(0, 10):
-            data[90+h] = 0.0
+        # 090 - hour temperature 01 (Celsius)
+        hour_ago_outTemp_vt = getattr(self, 'hour_ago_outTemp_vt',
+                                      ValueTuple(None, 'degree_C', 'group_temperature'))
+        try:
+            hour_ago_outTemp = convert(hour_ago_outTemp_vt, 'degree_C').value
+        except KeyError:
+            hour_ago_outTemp = None
+        data[90] = hour_ago_outTemp if hour_ago_outTemp is not None else 0.0
+        # 091-099 - hour temperature 02-10 (Celsius) - will not implement
+        for h in range(0, 9):
+            data[91+h] = 0.0
         # 100-109 - hour rain 01-10 (mm) - will not implement
         for h in range(0, 10):
             data[100+h] = 0.0
@@ -1208,7 +1259,7 @@ class RealtimeClientrawThread(threading.Thread):
         data[111] = heatindexTL if heatindexTL is not None else 0.0
         # 112 - heatindex (Celsius)
         data[112] = packet['heatindex'] if packet['heatindex'] is not None else 0.0
-        # 113 - maximum average speed (knot) - ### fix me - how to calculate
+        # 113 - maximum average speed (knot)
         if 'windSpeed' in self.buffer:
             windSpeedTM_loop = self.buffer['windSpeed'].day_max
         else:
@@ -1309,20 +1360,33 @@ class RealtimeClientrawThread(threading.Thread):
             barometerTL = None
         data[131] = barometerTH if barometerTH is not None else 0.0
         data[132] = barometerTL if barometerTL is not None else 0.0
-        # 133 - maximum windGust last hour (knot) - ### fix me - how to calculate
+        # 133 - maximum windGust last hour (knot)
         hour_gust_vt = getattr(self, 'hour_gust_vt',
                                ValueTuple(0, 'knot', 'group_speed'))
         if hour_gust_vt.value and 'windSpeed' in self.buffer:
             windSpeedTM_loop = self.buffer['windSpeed'].day_max
         else:
             windSpeedTM_loop = None
-        windGust60 = weeutil.weeutil.max_with_none([hour_gust_vt.value,
+        windGust60_ms = weeutil.weeutil.max_with_none([hour_gust_vt.value,
                                                    windSpeedTM_loop])
-        windGust60_vt = ValueTuple(windGust60, 'meter_per_second', 'group_speed')
+        windGust60_vt = ValueTuple(windGust60_ms, 'meter_per_second', 'group_speed')
         windGust60 = convert(windGust60_vt, 'knot').value
         data[133] = windGust60 if windGust60 is not None else 0.0
-        # 134 - maximum windGust in last hour time - ### Fix me - how to calculate
-        data[134] = time.strftime('%H:%M', time.localtime(packet['dateTime']))
+        # 134 - maximum windGust in last hour time
+        hour_gust_ts = getattr(self, 'hour_gust_ts', None)
+        if 'windSpeed' in self.buffer:
+            buffer_ot = self.buffer['windSpeed'].history_max(packet['dateTime'])
+        else:
+            buffer_ot = Obstuple(None, None)
+        if hour_gust_vt.value is None:
+            windGust60_ts = buffer_ot.ts
+        elif buffer_ot.value is None:
+            windGust60_ts = hour_gust_ts
+        elif buffer_ot.value > windGust60_ms:
+            windGust60_ts = buffer_ot.ts
+        else:
+            windGust60_ts = hour_gust_ts
+        data[134] = time.strftime('%H:%M', time.localtime(windGust60_ts)) if windGust60_ts is not None else '00:00'
         # 135 - maximum windGust today time
         if 'windSpeed' in self.buffer:
             TwindGustTM_ts = self.buffer['windSpeed'].day_maxtime
