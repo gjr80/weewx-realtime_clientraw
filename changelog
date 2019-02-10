@@ -1,2 +1,19 @@
-v0.1
+v0.2.1
+*   clientraw.txt content can now be sent to a remote URL via HTTP POST
+*   day windrun calculations are now seeded on startup
+*   field 117 average wind direction now calculated (assumed to be average
+    direction over the current day)
+
+v0.2.0
+*   added trend period config options, reworked trend field calculations
+*   buffer object is now seeded on startup
+*   added support for 9am rain reset total
+*   binding used for appTemp data is now set by additional_binding config option
+*   added comments details supported fields as well as fields required by
+    Saratoga dashboard and Alternative dashboard
+*   now calculates maxSolarRad if pyphem is present
+*   maxSolarRad algorithm now selectable through config options
+*   removed a number of unused buffer object properties
+
+v0.1.0
 *   initial release
