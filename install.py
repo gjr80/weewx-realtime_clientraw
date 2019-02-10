@@ -11,9 +11,13 @@
 #
 #                     Installer for Realtime Clientraw
 #
-# Version: 0.1.0                                        Date: 7 March 2017
+# Version: 0.2.1                                        Date: ?? February 2019
 #
 # Revision History
+#   ?? February 2019    v0.2.1
+#       - fix some pycharm complaints
+#   19 March 2017       v0.2.0
+#       - no change, bump version only
 #   7 March 2017        v0.1.0
 #       - initial implementation
 #
@@ -26,8 +30,10 @@ from setup import ExtensionInstaller
 REQUIRED_VERSION = "3.4.0"
 RTCR_VERSION = "0.1.0"
 
+
 def loader():
     return RtcrInstaller()
+
 
 class RtcrInstaller(ExtensionInstaller):
     def __init__(self):
