@@ -1040,7 +1040,8 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             soil_temp = None
         data[14] = soil_temp if soil_temp is not None else 0.0
-        # 015 - Forecast Icon - ### Fix me
+        # FIXME. Need to implement field 15
+        # 015 - Forecast Icon
         data[15] = 0
         # 016 - WMR968 extra temperature (Celsius) - will not implement
         data[16] = 0.0
@@ -1186,9 +1187,11 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             temp_tl = None
         data[47] = temp_tl if temp_tl is not None else 0.0
-        # 048 - icon type - ### Fix me)
+        # FIXME. Need to implement field 48
+        # 048 - icon type
         data[48] = 0
-        # 049 - weather description - ### Fix me
+        # FIXME. Need to implement field 49
+        # 049 - weather description
         data[49] = '---'
         # 050 - barometer trend (hPa)
         baro_vt = ValueTuple(packet['barometer'], 'hPa', 'group_pressure')
