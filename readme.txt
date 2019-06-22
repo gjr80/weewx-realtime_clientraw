@@ -1,4 +1,4 @@
-The Realtime clientraw extension is a weeWX extension that generates a loop 
+The Realtime clientraw extension is a WeeWX extension that generates a loop
 based clientraw.txt file for near realtime updating of the dashboards supported 
 by the Saratoga Weather Website templates.
 
@@ -10,19 +10,18 @@ Note: The Saratoga dashboards include the standard dashboard included in the
 
 Note: Whilst clientraw.txt can be used for a number of purposes other than near
       realtime updates of the Saratoga dashboards, (eg updating Weather Display 
-      Live or Meteotemplate), the Realtime clientraw extension has been 
-      developed solely for updating the Saratoga dashboards. As such some 
-      clientraw.txt fields not used by the Saratoga dashboards have not been 
-      calculated and consequently the Realtime clientraw extension generated 
-      clientraw.txt may not be suitable for these other purposes. The initial 
-      comments in the rtcr.py file detail the clientraw.txt fields that are not 
-      calculated.
+      Live), the Realtime clientraw extension has been developed solely for
+      updating the Saratoga dashboards. As such some clientraw.txt fields not
+      used by the Saratoga dashboards have not been calculated and
+      consequently the Realtime clientraw extension generated clientraw.txt may
+      not be suitable for these other purposes. The initial comments in the
+      rtcr.py file detail the clientraw.txt fields that are not calculated.
 
 Pre-Requisites 
 
-The Realtime clientraw extension requires weeWX v3.4.0 or greater. Use of the 
+The Realtime clientraw extension requires WeeWX v3.4.0 or greater. Use of the
 Realtime clientraw extension with the Saratoga template requires the 
-installation and configuration for use with weeWX of the Saratoga templates.
+installation and configuration for use with WeeWX of the Saratoga templates.
 
 Installation Instructions
 
@@ -30,7 +29,7 @@ The Realtime clientraw extension can be installed manually or automatically
 using the wee_extension utility. The preferred method of installation is 
 through the use of wee_extension.
 
-Note: Symbolic names are used below to refer to some file location on the weeWX
+Note: Symbolic names are used below to refer to some file location on the WeeWX
       system. These symbolic names allow a common name to be used to refer to a 
       directory that may be different from system to system. The following 
       symbolic names are used below:
@@ -38,15 +37,15 @@ Note: Symbolic names are used below to refer to some file location on the weeWX
 -   $DOWNLOAD_ROOT. The path to the directory containing the downloaded
     Realtime gauge-data extension.
 
--   $HTML_ROOT. The path to the directory where weeWX generated reports are
+-   $HTML_ROOT. The path to the directory where WeeWX generated reports are
     saved. This directory is normally set in the [StdReport] section of
-    weewx.conf. Refer to 'where to find things' in the weeWX User's Guide:
+    weewx.conf. Refer to 'where to find things' in the WeeWX User's Guide:
     http://weewx.com/docs/usersguide.htm#Where_to_find_things for further
     information.
 
--   $BIN_ROOT. The path to the directory where weeWX executables are located.
-    This directory varies depending on weeWX installation method. Refer to
-    'where to find things' in the weeWX User's Guide:
+-   $BIN_ROOT. The path to the directory where WeeWX executables are located.
+    This directory varies depending on WeeWX installation method. Refer to
+    'where to find things' in the WeeWX User's Guide:
     http://weewx.com/docs/usersguide.htm#Where_to_find_things for further
     information.
 
@@ -54,14 +53,14 @@ Installation using the wee_extension utility
 
 1.  Download the latest Realtime clientraw extension from the Realtime 
 clientraw extension releases page (https://github.com/gjr80/weewx-realtime_clientraw/releases) 
-into a directory accessible from the weeWX machine.
+into a directory accessible from the WeeWX machine.
 
-        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.1.0/rtcr-0.1.0.tar.gz
+        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.2.1/rtcr-0.2.1.tar.gz
 
     where $DOWNLOAD_ROOT is the path to the directory where the Realtime 
     clientraw extension is to be downloaded.
 
-2.  Stop weeWX:
+2.  Stop WeeWX:
 
     sudo /etc/init.d/weewx stop
 
@@ -72,17 +71,17 @@ into a directory accessible from the weeWX machine.
 3.  Install the Realtime clientraw extension downloaded at step 1 using the 
 wee_extension utility:
 
-    wee_extension --install=$DOWNLOAD_ROOT/rtcr-0.1.0.tar.gz
+    wee_extension --install=$DOWNLOAD_ROOT/rtcr-0.2.1.tar.gz
 
     This will result in output similar to the following:
 
-        Request to install '/var/tmp/rtcr-0.1.0.tar.gz'
-        Extracting from tar archive /var/tmp/rtcr-0.1.0.tar.gz
+        Request to install '/var/tmp/rtcr-0.2.1.tar.gz'
+        Extracting from tar archive /var/tmp/rtcr-0.2.1.tar.gz
         Saving installer file to /home/weewx/bin/user/installer/Rtcr
         Saved configuration dictionary. Backup copy at /home/weewx/weewx.conf.20170215124410
-        Finished installing extension '/var/tmp/rtcr-0.1.0.tar.gz'
+        Finished installing extension '/var/tmp/rtcr-0.2.1.tar.gz'
 
-4.  Start weeWX:
+4.  Start WeeWX:
 
     sudo /etc/init.d/weewx start
 
@@ -100,16 +99,16 @@ Manual installation
 
 1.  Download the latest Realtime clientraw extension from the Realtime 
 clientraw extension [releases page](https://github.com/gjr80/weewx-realtime_clientraw/releases) 
-into a directory accessible from the weeWX machine.
+into a directory accessible from the WeeWX machine.
 
-        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.1.0/rtcr-0.1.0.tar.gz
+        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.2.1/rtcr-0.2.1.tar.gz
 
     where $DOWNLOAD_ROOT is the path to the directory where the Realtime 
     clientraw extension is to be downloaded.
 
 2.  Unpack the extension as follows:
 
-    tar xvfz rtcr-0.1.0.tar.gz
+    tar xvfz rtcr-0.2.1.tar.gz
 
 3.  Copy files from within the resulting directory as follows:
 
@@ -130,7 +129,7 @@ RealtimeClientraw service to the list of process services to be run:
 
                 report_services = weewx.engine.StdPrint, weewx.engine.StdReport, user.rtgd.RealtimeClientraw
 
-6.  Stop then start weeWX:
+6.  Stop then start WeeWX:
 
     sudo /etc/init.d/weewx stop
     sudo /etc/init.d/weewx start
