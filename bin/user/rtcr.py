@@ -2260,7 +2260,7 @@ class RtcrBuffer(dict):
         kept longer than the end of the archive period.
         """
 
-        for obs in SUM:
+        for obs in SUM_MANIFEST:
             self[obs].nineam_reset()
 
 
