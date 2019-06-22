@@ -1,63 +1,57 @@
-# rtcr.py
-#
-# A weeWX service to generate a loop based clientraw.txt to support the
-# Saratoga Weather Web Templates dashboards.
-#
-# Copyright (C) 2017-19 Gary Roderick                  gjroderick<at>gmail.com
-#
-# This program is free software: you can redistribute it and/or modify it under
-# the terms of the GNU General Public License as published by the Free
-# Software Foundation, either version 3 of the License, or (at your option) any
-# later version.
-#
-# This program is distributed in the hope that it will be useful, but WITHOUT
-# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
-# FOR A PARTICULAR PURPOSE.  See the GNU General Public License for more
-# details.
-#
-# You should have received a copy of the GNU General Public License along with
-# this program.  If not, see http://www.gnu.org/licenses/.
-#
-# Version: 0.2.1                                        Date: ?? February 2019
-#
-# Revision History
-#                       v0.2.1  - clientraw.txt content can now be sent to a
-#                                 remote URL via HTTP POST.
-#                               - day windrun calculations are now seeded on
-#                                 startup
-#                               - field 117 average wind direction now
-#                                 calculated (assumed to be average direction
-#                                 over the current day)
-#   19 March 2017       v0.2.0  - added trend period config options, reworked
-#                                 trend field calculations
-#                               - buffer object is now seeded on startup
-#                               - added support for 9am rain reset total
-#                               - binding used for appTemp data is now set
-#                                 by additional_binding config option
-#                               - added comments details supported fields as
-#                                 well as fields required by Saratoga dashboard
-#                                 and Alternative dashboard
-#                               - now calculates maxSolarRad if pyphem is
-#                                 present
-#                               - maxSolarRad algorithm now selectable through
-#                                 config options
-#                               - removed a number of unused buffer object
-#                                 properties
-#   3 March 2017        v0.1.0  - initial release
-#
+"""
+rtcr.py
 
-"""The RealtimeClientraw service generates a loop based clientraw.txt that can
-be used to update the Saratoga Weather Web Templates dashboard and the
+A WeeWX service to generate a loop based clientraw.txt.
+
+Copyright (C) 2017-19 Gary Roderick                  gjroderick<at>gmail.com
+
+This program is free software: you can redistribute it and/or modify it under
+the terms of the GNU General Public License as published by the Free Software
+Foundation, either version 3 of the License, or (at your option) any later
+version.
+
+This program is distributed in the hope that it will be useful, but WITHOUT ANY
+WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A
+PARTICULAR PURPOSE.  See the GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License along with
+this program.  If not, see http://www.gnu.org/licenses/.
+
+Version: 0.2.1                                        Date: 22 June 2019
+
+Revision History
+    22 June 2019        v0.2.1
+        - clientraw.txt content can now be sent to a remote URL via HTTP POST.
+        - day windrun calculations are now seeded on startup
+        - field 117 average wind direction now calculated (assumed to be
+          average direction over the current day)
+    19 March 2017       v0.2.0
+        - added trend period config options, reworked trend field calculations
+        - buffer object is now seeded on startup
+        - added support for 9am rain reset total
+        - binding used for appTemp data is now set by additional_binding config
+          option
+        - added comments details supported fields as well as fields required by
+          Saratoga dashboard and Alternative dashboard
+        - now calculates maxSolarRad if pyphem is present
+        - maxSolarRad algorithm now selectable through config options
+        - removed a number of unused buffer object properties
+    3 March 2017        v0.1.0
+        - initial release
+
+
+The RealtimeClientraw service generates a loop based clientraw.txt that can be
+used to update the Saratoga Weather Web Templates dashboard and the
 Alternative dashboard in near real time.
 
-Whilst the RealtimeClientraw generated
-clientraw.txt will is fully compatible with the Saratoga dashboard and the
-Alternative dashboard, some of the other uses of clientraw.txt are not fully
-supported. For example, clientraw.txt can also be used as a data feed for
-Weather Display Live (WDL); however, a number of the fields used by WDL are not
-populated by the RealtimeClientraw service. Other applications of clientraw.txt
-may or may not be supported by the RealtimeClientraw generated clientraw.txt
-depending on what clientraw.txt fields are used.
+Whilst the RealtimeClientraw generated clientraw.txt will is fully compatible
+with the Saratoga dashboard and the Alternative dashboard, some of the other
+uses of clientraw.txt are not fully supported. For example, clientraw.txt can
+also be used as a data feed for Weather Display Live (WDL); however, a number
+of the fields used by WDL are not populated by the RealtimeClientraw service.
+Other applications of clientraw.txt may or may not be supported by the
+RealtimeClientraw generated clientraw.txt depending on what clientraw.txt
+fields are used.
 
 A list showing which clientraw.txt fields are/are not populated by the
 RealtimeClientraw service is included below.
@@ -112,7 +106,8 @@ Abbreviated instructions for use:
     humidity_trend_period = 3600
     humidex_trend_period = 3600
 
-    # Largest acceptable difference in seconds between ... when searching the archive. Optional, default is 200.
+    # Largest acceptable difference in seconds for whch a record is considered
+    # a match. Optional, default is 200.
     grace = 200
 
 4.  Add the RealtimeClientraw service to the list of report services under
@@ -122,7 +117,7 @@ Abbreviated instructions for use:
     [[WxEngine]]
         report_services = ..., user.rtcr.RealtimeClientraw
 
-5.  Stop/start weeWX
+5.  Stop/start WeeWX
 
 6.  Confirm that clientraw.txt is being generated regularly as per the
     min_interval setting under [RealtimeClientraw] in weewx.conf.
@@ -167,7 +162,7 @@ import urllib2
 
 from operator import itemgetter
 
-# weeWX imports
+# WeeWX imports
 import weewx
 import weeutil.weeutil
 import weewx.tags
@@ -394,7 +389,7 @@ class RealtimeClientraw(StdService):
                               'fields': field_str}
                 # the query to be used
                 _sql = "SELECT %(fields)s FROM %(table_name)s "\
-                           "ORDER BY dateTime DESC LIMIT 1"
+                       "ORDER BY dateTime DESC LIMIT 1"
                 # execute the query
                 _row = self.db_manager.getSql(_sql % inter_dict)
                 if not _row or None in _row:
@@ -425,7 +420,7 @@ class RealtimeClientraw(StdService):
                       'stop': yest_tspan.stop}
         # the query to be used
         _sql = "SELECT SUM(rain) FROM %(table_name)s "\
-                   "WHERE dateTime > %(start)s AND dateTime <= %(stop)s"
+               "WHERE dateTime > %(start)s AND dateTime <= %(stop)s"
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
@@ -442,7 +437,7 @@ class RealtimeClientraw(StdService):
                       'stop': month_tspan.stop}
         # the query to be used
         _sql = "SELECT SUM(sum) FROM %(table_name)s_day_rain "\
-                   "WHERE dateTime >= %(start)s AND dateTime < %(stop)s"
+               "WHERE dateTime >= %(start)s AND dateTime < %(stop)s"
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
@@ -459,7 +454,7 @@ class RealtimeClientraw(StdService):
                       'stop': year_tspan.stop}
         # the query to be used
         _sql = "SELECT SUM(sum) FROM %(table_name)s_day_rain "\
-                   "WHERE dateTime >= %(start)s AND dateTime < %(stop)s"
+               "WHERE dateTime >= %(start)s AND dateTime < %(stop)s"
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
@@ -483,7 +478,7 @@ class RealtimeClientraw(StdService):
                       'stop': hour_tspan.stop}
         # the query to be used
         _sql = "SELECT MAX(windGust) FROM %(table_name)s "\
-                   "WHERE dateTime > %(start)s AND dateTime <= %(stop)s"
+               "WHERE dateTime > %(start)s AND dateTime <= %(stop)s"
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
@@ -492,9 +487,9 @@ class RealtimeClientraw(StdService):
             result['hour_gust_vt'] = ValueTuple(_row[0], unit, group)
         # now get the time it occurred
         _sql = "SELECT dateTime FROM %(table_name)s "\
-                   "WHERE dateTime > %(start)s AND dateTime <= %(stop)s AND "\
-                   "windGust = (SELECT MAX(windGust) FROM %(table_name)s "\
-                   "WHERE dateTime > %(start)s and dateTime <= %(stop)s) AND windGust IS NOT NULL"
+               "WHERE dateTime > %(start)s AND dateTime <= %(stop)s AND "\
+               "windGust = (SELECT MAX(windGust) FROM %(table_name)s "\
+               "WHERE dateTime > %(start)s and dateTime <= %(stop)s) AND windGust IS NOT NULL"
         # execute the query
         _row = self.db_manager.getSql(_sql % inter_dict)
         if not _row or None in _row:
@@ -585,7 +580,7 @@ class RealtimeClientrawThread(threading.Thread):
         self.windrun_loop = to_bool(rtcr_config_dict.get('windrun_loop',
                                                          'False'))
 
-        # weeWX does not normally archive appTemp so day stats are not usually
+        # WeeWX does not normally archive appTemp so day stats are not usually
         # available; however, if the user does have appTemp in a database then
         # if we have a binding we can use it. Check if an appTemp binding was
         # specified, if so use it, otherwise default to 'wx_binding'. We will
@@ -866,10 +861,10 @@ class RealtimeClientrawThread(threading.Thread):
     def post_data(self, data):
         """Post data to a remote URL via HTTP POST.
 
-        This code is modelled on the weeWX restFUL API, but rather then
+        This code is modelled on the WeeWX restFUL API, but rather then
         retrying a failed post the failure is logged and then ignored. If
         remote posts are not working then the user should set debug=1 and
-        restart weeWX to see what the log says.
+        restart WeeWX to see what the log says.
 
         The data to be posted is sent as an ascii text string.
 
@@ -1401,7 +1396,7 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             windSpeed_tm_loop = None
         windGust60_ms = weeutil.weeutil.max_with_none([hour_gust_vt.value,
-                                                   windSpeed_tm_loop])
+                                                       windSpeed_tm_loop])
         windGust60_vt = ValueTuple(windGust60_ms, 'meter_per_second', 'group_speed')
         try:
             windGust60 = convert(windGust60_vt, 'knot').value
@@ -2237,7 +2232,7 @@ class RtcrBuffer(dict):
         """Clean out any old obs from the buffer history."""
 
         for obs in HIST_MANIFEST:
-            self[obs]['history_full'] = min([a.ts for a in self[obs]['history'] if a.ts is not None]) <= old_ts
+            self[obs]['history_full'] = min([a.ts for a in self[obs]['history'] if a.ts is not None])
             # calc ts of oldest sample we want to retain
             oldest_ts = ts - MAX_AGE
             # remove any values older than oldest_ts
@@ -2332,7 +2327,7 @@ class CachedPacket(object):
     # These fields must be available in every loop packet read from the
     # cache.
     OBS = ["cloudbase", "windDir", "windrun", "inHumidity", "outHumidity",
-           "barometer", "radiation", "rain", "rainRate","windSpeed",
+           "barometer", "radiation", "rain", "rainRate", "windSpeed",
            "appTemp", "dewpoint", "heatindex", "humidex", "inTemp",
            "outTemp", "windchill", "UV"]
 
@@ -2472,9 +2467,9 @@ def calc_wetbulb(Ta, RH, P):
 
     if Ta is None or RH is None or P is None:
         return None
-    Tdc = Ta - (14.55 + 0.114 * Ta) * (1 - (0.01 * RH)) - \
-          ((2.5 + 0.007 * Ta) * (1 - (0.01 * RH))) ** 3 - \
-          (15.9 + 0.117 * Ta) * (1 - (0.01 * RH)) ** 14
+    Tdc = Ta - (14.55 + 0.114 * Ta) * (1 - (0.01 * RH)) -\
+        ((2.5 + 0.007 * Ta) * (1 - (0.01 * RH))) ** 3 -\
+        (15.9 + 0.117 * Ta) * (1 - (0.01 * RH)) ** 14
     E = 6.11 * 10 ** (7.5 * Tdc / (237.7 + Tdc))
     WB = (((0.00066 * P) * Ta) + ((4098 * E) / ((Tdc + 237.7) ** 2) * Tdc)) / \
          ((0.00066 * P) + (4098 * E) / ((Tdc + 237.7) ** 2))
