@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.2.1                                        Date: 22 June 2019
+Version: 0.2.2b1                                        Date: 1 March 2020
 
 Revision History
+    1 March 2020        v0.2.2b1
+        - fix exception caused when there is no windDir (windDir == None)
     22 June 2019        v0.2.1
         - clientraw.txt content can now be sent to a remote URL via HTTP POST.
         - day windrun calculations are now seeded on startup
@@ -173,7 +175,7 @@ from weewx.units import ValueTuple, convert, ListOfDicts
 from weeutil.weeutil import to_bool, to_int
 
 # version number of this script
-RTCR_VERSION = '0.2.1'
+RTCR_VERSION = '0.2.2b1'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',

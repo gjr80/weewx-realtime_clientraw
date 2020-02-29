@@ -1,3 +1,5 @@
+v0.2.2
+*   fixed exception caused when there is no windDir (windDir == None)
 v0.2.1
 *   clientraw.txt content can now be sent to a remote URL via HTTP POST
 *   day windrun calculations are now seeded on startup
