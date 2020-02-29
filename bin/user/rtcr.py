@@ -1862,14 +1862,10 @@ class VectorBuffer(object):
                     self.day_max = w_speed
                     self.day_maxtime = ts
             if history:
-                self.history.append(ObsTuple((w_speed,
-                                              math.cos(math.radians(90.0 - w_dir)),
-                                              math.sin(math.radians(90.0 - w_dir))), ts))
-#                self.history.append(ObsTuple((round(w_speed,4),
-#                                              round(math.cos(math.radians(90.0 - w_dir)),4),
-#                                              round(math.sin(math.radians(90.0 - w_dir)),4)), ts))
-#                loginf("","speed=%s dir=%s" % (w_speed, w_dir))
-#                loginf("","self.history=%s" % (self.history,))
+                if w_dir is not None:
+                    self.history.append(ObsTuple((w_speed,
+                                                  math.cos(math.radians(90.0 - w_dir)),
+                                                  math.sin(math.radians(90.0 - w_dir))), ts))
                 self.trim_history(ts)
             if sum:
                 self.day_sum += w_speed
@@ -1900,12 +1896,13 @@ class VectorBuffer(object):
     def trim_history(self, ts):
         """Trim an old data from the history list."""
 
-        # calc ts of oldest sample we want to retain
-        oldest_ts = ts - MAX_AGE
-        # set history_full
-        self.history_full = min([a.ts for a in self.history if a.ts is not None]) <= oldest_ts
-        # remove any values older than oldest_ts
-        self.history = [s for s in self.history if s.ts > oldest_ts]
+        if len(self.history) > 0:
+            # calc ts of oldest sample we want to retain
+            oldest_ts = ts - MAX_AGE
+            # set history_full
+            self.history_full = min([a.ts for a in self.history if a.ts is not None]) <= oldest_ts
+            # remove any values older than oldest_ts
+            self.history = [s for s in self.history if s.ts > oldest_ts]
 
     def history_max(self, ts, age=MAX_AGE):
         """Return the max value in my history.
