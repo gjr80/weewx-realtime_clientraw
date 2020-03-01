@@ -10,16 +10,18 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Realtime Clientraw
 
-Version: 0.2.1                                        Date: 22 June 2019
+Version: 0.2.2                                        Date: 1 March 2020
 
 Revision History
-   22 June 2019         v0.2.1
-       - fix some pycharm complaints
-       - reformat top of file comments
-   19 March 2017       v0.2.0
-       - no change, bump version only
-   7 March 2017        v0.1.0
-       - initial implementation
+    1 March 2020        v0.2.2
+        - no change, bump version only
+    22 June 2019         v0.2.1
+        - fix some pycharm complaints
+        - reformat top of file comments
+    19 March 2017       v0.2.0
+        - no change, bump version only
+    7 March 2017        v0.1.0
+        - initial implementation
 """
 
 import weewx
@@ -28,7 +30,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.4.0"
-RTCR_VERSION = "0.2.1"
+RTCR_VERSION = "0.2.2"
 
 
 def loader():
