@@ -17,9 +17,15 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.2.2                                          Date: 1 March 2020
+Version: 0.2.3                                          Date: 9 March 2020
 
 Revision History
+    9 March 2020        v0.2.3
+        - fixed missing conversion to integer on some numeric config items
+        - added try..except around the main thread code so that thread
+          exceptions can be trapped and logged rather than the thread silently
+          dieing
+        - changed to python 2/3 compatible fixed except syntax
     1 March 2020        v0.2.2
         - fix exception caused when there is no windDir (windDir == None)
     22 June 2019        v0.2.1
@@ -175,7 +181,7 @@ from weewx.units import ValueTuple, convert, ListOfDicts
 from weeutil.weeutil import to_bool, to_int
 
 # version number of this script
-RTCR_VERSION = '0.2.2'
+RTCR_VERSION = '0.2.3'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -547,7 +553,6 @@ class RealtimeClientrawThread(threading.Thread):
         _path = rtcr_config_dict.get('rtcr_path', '/var/tmp')
         _html_root = os.path.join(config_dict['WEEWX_ROOT'],
                                   config_dict['StdReport'].get('HTML_ROOT', ''))
-
         rtcr_path = os.path.join(_html_root, _path)
         self.rtcr_path_file = os.path.join(rtcr_path,
                                            rtcr_config_dict.get('rtcr_file_name',
@@ -560,11 +565,11 @@ class RealtimeClientrawThread(threading.Thread):
         # response text from remote URL if post was successful
         self.response = rtcr_config_dict.get('response_text', None)
 
-        # some field definition settigns (mainly time periods for averages etc)
-        self.avgspeed_period = rtcr_config_dict.get('avgspeed_period',
-                                                    DEFAULT_AV_SPEED_PERIOD)
-        self.gust_period = rtcr_config_dict.get('gust_period',
-                                                DEFAULT_GUST_PERIOD)
+        # some field definition settings (mainly time periods for averages etc)
+        self.avgspeed_period = to_int(rtcr_config_dict.get('avgspeed_period',
+                                                           DEFAULT_AV_SPEED_PERIOD))
+        self.gust_period = to_int(rtcr_config_dict.get('gust_period',
+                                                       DEFAULT_GUST_PERIOD))
 
         # set some format strings
         self.time_format = '%H:%M'
@@ -675,14 +680,13 @@ class RealtimeClientrawThread(threading.Thread):
                                              "out of range (2-5)" % self.nfac)
 
         if self.min_interval is None:
-            _msg = "RealtimeClientraw will generate clientraw.txt. "\
-                       "min_interval is None"
-        elif self.min_interval == 1:
-            _msg = "RealtimeClientraw will generate clientraw.txt. "\
-                       "min_interval is 1 second"
+            _msg = "RealtimeClientraw will generate %s. min_interval is None" % self.rtcr_path_file
+        elif to_int(self.min_interval) == 1:
+            _msg = "RealtimeClientraw will generate %s. min_interval is 1 second" % self.rtcr_path_file
         else:
-            _msg = "RealtimeClientraw will generate clientraw.txt. min_interval is %s seconds" % self.min_interval
-        loginf("engine", _msg)
+            _msg = "RealtimeClientraw will generate %s. min_interval is %s seconds" % (self.rtcr_path_file,
+                                                                                       self.min_interval)
+        loginf("rtcrthread", _msg)
 
     def run(self):
         """Collect packets from the rtcr queue and manage their processing.
@@ -692,83 +696,83 @@ class RealtimeClientrawThread(threading.Thread):
         something in the rtcr queue.
         """
 
-        # would normally do this in our objects __init__ but since we are are
-        # running in a thread we need to wait until the thread is actually
-        # running before getting db managers
-
-        # get a db manager
-        self.db_manager = weewx.manager.open_manager(self.manager_dict)
-        # get a db manager for appTemp
-        if self.additional_binding:
-            self.additional_manager = weewx.manager.open_manager_with_config(self.config_dict,
-                                                                             self.additional_binding)
-        # initialise our day stats
-        self.day_stats = self.db_manager._get_day_summary(time.time())
-        # set the unit system for our day stats
-        self.day_stats.unit_system = self.db_manager.std_unit_system
-        if self.additional_manager:  # initialise our day stats from our appTemp source
-            self.additional_day_stats = self.additional_manager._get_day_summary(time.time())
+        # since we are running in a thread wrap in a try..except so we can trap
+        # and log any errors rather than the thread silently dieing
+        try:
+            # would normally do this in our objects __init__ but since we are are
+            # running in a thread we need to wait until the thread is actually
+            # running before getting db managers
+            # get a db manager
+            self.db_manager = weewx.manager.open_manager(self.manager_dict)
+            # get a db manager for appTemp
+            if self.additional_binding:
+                self.additional_manager = weewx.manager.open_manager_with_config(self.config_dict,
+                                                                                 self.additional_binding)
+            # initialise our day stats
+            self.day_stats = self.db_manager._get_day_summary(time.time())
             # set the unit system for our day stats
-            self.additional_day_stats.unit_system = self.additional_manager.std_unit_system
-        # create a RtcrBuffer object to hold our loop 'stats'
-        self.buffer = RtcrBuffer(day_stats=self.day_stats,
-                                 additional_day_stats=self.additional_day_stats)
-        # setup our loop cache and set some starting wind values
-        _ts = self.db_manager.lastGoodStamp()
-        if _ts is not None:
-            _rec = self.db_manager.getRecord(_ts)
-        else:
-            _rec = {'usUnits': None}
-        _rec = weewx.units.to_METRICWX(_rec)
-        # get a CachedPacket object as our loop packet cache and prime it with
-        # values from the last good archive record if available
-        logdbg2("rtcrthread", "initialising loop packet cache ...")
-        self.packet_cache = CachedPacket(_rec)
-        logdbg2("rtcrthread", "loop packet cache initialised")
+            self.day_stats.unit_system = self.db_manager.std_unit_system
+            if self.additional_manager:  # initialise our day stats from our appTemp source
+                self.additional_day_stats = self.additional_manager._get_day_summary(time.time())
+                # set the unit system for our day stats
+                self.additional_day_stats.unit_system = self.additional_manager.std_unit_system
+            # create a RtcrBuffer object to hold our loop 'stats'
+            self.buffer = RtcrBuffer(day_stats=self.day_stats,
+                                     additional_day_stats=self.additional_day_stats)
+            # setup our loop cache and set some starting wind values
+            _ts = self.db_manager.lastGoodStamp()
+            if _ts is not None:
+                _rec = self.db_manager.getRecord(_ts)
+            else:
+                _rec = {'usUnits': None}
+            _rec = weewx.units.to_METRICWX(_rec)
+            # get a CachedPacket object as our loop packet cache and prime it with
+            # values from the last good archive record if available
+            logdbg2("rtcrthread", "initialising loop packet cache ...")
+            self.packet_cache = CachedPacket(_rec)
+            logdbg2("rtcrthread", "loop packet cache initialised")
 
-        # now run a continuous loop, waiting for records to appear in the rtcr
-        # queue then processing them.
-        while True:
+            # now run a continuous loop, waiting for records to appear in the rtcr
+            # queue then processing them.
             while True:
-                _package = self.rtcr_queue.get()
-                # a None record is our signal to exit
-                if _package is None:
-                    return
-                elif _package['type'] == 'archive':
-                    self.new_archive_record(_package['payload'])
-                    logdbg2("rtcrthread", "received archive record")
-                    continue
-                elif _package['type'] == 'event':
-                    if _package['payload'] == weewx.END_ARCHIVE_PERIOD:
+                while True:
+                    _package = self.rtcr_queue.get()
+                    # a None record is our signal to exit
+                    if _package is None:
+                        return
+                    elif _package['type'] == 'archive':
+                        self.new_archive_record(_package['payload'])
+                        logdbg2("rtcrthread", "received archive record")
+                        continue
+                    elif _package['type'] == 'event':
+                        if _package['payload'] == weewx.END_ARCHIVE_PERIOD:
+                            logdbg2("rtcrthread",
+                                    "received event - END_ARCHIVE_PERIOD")
+                            self.end_archive_period()
+                        continue
+                    elif _package['type'] == 'stats':
                         logdbg2("rtcrthread",
-                                "received event - END_ARCHIVE_PERIOD")
-                        self.end_archive_period()
-                    continue
-                elif _package['type'] == 'stats':
-                    logdbg2("rtcrthread",
-                            "received stats package payload=%s" % (_package['payload'], ))
-                    self.process_stats(_package['payload'])
-                    logdbg2("rtcrthread", "processed stats package")
-                    continue
-                # if packets have backed up in the rtcr queue, trim it until
-                # it's no bigger than the max allowed backlog
-                if self.rtcr_queue.qsize() <= 5:
-                    break
+                                "received stats package payload=%s" % (_package['payload'], ))
+                        self.process_stats(_package['payload'])
+                        logdbg2("rtcrthread", "processed stats package")
+                        continue
+                    # if packets have backed up in the rtcr queue, trim it until
+                    # it's no bigger than the max allowed backlog
+                    if self.rtcr_queue.qsize() <= 5:
+                        break
 
-            # we now have a packet to process, wrap in a try..except so we can
-            # catch any errors
-            try:
+                # if we made it here we have a loop packet to process
                 logdbg2("rtcrthread",
                         "received packet: %s" % _package['payload'])
                 self.process_packet(_package['payload'])
-            except Exception, e:
-                # Some unknown exception occurred. This is probably a serious
-                # problem. Exit.
-                logcrit("rtcrthread",
-                        "Unexpected exception of type %s" % (type(e), ))
-                weeutil.weeutil.log_traceback('*** ', syslog.LOG_DEBUG)
-                logcrit("rtcrthread", "Thread exiting. Reason: %s" % (e, ))
-                return
+        except Exception as e:
+            # Some unknown exception occurred. This is probably a serious
+            # problem. Exit.
+            logcrit("rtcrthread",
+                    "Unexpected exception of type %s" % (type(e), ))
+            weeutil.weeutil.log_traceback('*** ', syslog.LOG_DEBUG)
+            logcrit("rtcrthread", "Thread exiting. Reason: %s" % (e, ))
+            return
 
     def process_packet(self, packet):
         """Process incoming loop packets and generate clientraw.txt."""
@@ -825,7 +829,7 @@ class RealtimeClientrawThread(threading.Thread):
                 logdbg("rtcrthread",
                        "packet (%s) clientraw.txt generated in %.5f seconds" % (cached_packet['dateTime'],
                                                                                 (self.last_write-t1)))
-            except Exception, e:
+            except Exception as e:
                 weeutil.weeutil.log_traceback('rtcrthread: **** ')
         else:
             # we skipped this packet so log it
@@ -895,7 +899,7 @@ class RealtimeClientrawThread(threading.Thread):
             logdbg("post_data",
                    "Failed to post data: Code %s" % response.code())
         except (urllib2.URLError, socket.error,
-                httplib.BadStatusLine, httplib.IncompleteRead), e:
+                httplib.BadStatusLine, httplib.IncompleteRead) as e:
             # an exception was thrown, log it and continue
             logdbg("post_data", "Failed to post data: %s" % e)
 
