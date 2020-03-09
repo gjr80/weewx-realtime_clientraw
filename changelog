@@ -1,3 +1,10 @@
+v0.2.3
+*   fixed missing conversion to integer on some numeric config items
+*   added try..except around the main thread code so that thread exceptions can
+    be trapped and logged rather than the thread silently dieing
+*   changed to python 2/3 compatible fixed except syntax
+*   fixed incorrect instructions for setting additional_binding config item when
+    there is no additional binding
 v0.2.2
 *   fixed exception caused when there is no windDir (windDir == None)
 v0.2.1

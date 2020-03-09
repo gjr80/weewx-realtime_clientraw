@@ -10,9 +10,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Realtime Clientraw
 
-Version: 0.2.2                                        Date: 1 March 2020
+Version: 0.2.3                                        Date: 9 March 2020
 
 Revision History
+    9 March 2020        v0.2.3
+        - no change, bump version only
     1 March 2020        v0.2.2
         - no change, bump version only
     22 June 2019         v0.2.1
@@ -30,7 +32,7 @@ from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
 REQUIRED_VERSION = "3.4.0"
-RTCR_VERSION = "0.2.2"
+RTCR_VERSION = "0.2.3"
 
 
 def loader():

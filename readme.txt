@@ -55,7 +55,7 @@ Installation using the wee_extension utility
 clientraw extension releases page (https://github.com/gjr80/weewx-realtime_clientraw/releases) 
 into a directory accessible from the WeeWX machine.
 
-        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.2.2/rtcr-0.2.2.tar.gz
+        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.2.3/rtcr-0.2.3.tar.gz
 
     where $DOWNLOAD_ROOT is the path to the directory where the Realtime 
     clientraw extension is to be downloaded.
@@ -71,15 +71,15 @@ into a directory accessible from the WeeWX machine.
 3.  Install the Realtime clientraw extension downloaded at step 1 using the 
 wee_extension utility:
 
-    wee_extension --install=$DOWNLOAD_ROOT/rtcr-0.2.2.tar.gz
+    wee_extension --install=$DOWNLOAD_ROOT/rtcr-0.2.3.tar.gz
 
     This will result in output similar to the following:
 
-        Request to install '/var/tmp/rtcr-0.2.2.tar.gz'
-        Extracting from tar archive /var/tmp/rtcr-0.2.2.tar.gz
+        Request to install '/var/tmp/rtcr-0.2.3.tar.gz'
+        Extracting from tar archive /var/tmp/rtcr-0.2.3.tar.gz
         Saving installer file to /home/weewx/bin/user/installer/Rtcr
         Saved configuration dictionary. Backup copy at /home/weewx/weewx.conf.20170215124410
-        Finished installing extension '/var/tmp/rtcr-0.2.2.tar.gz'
+        Finished installing extension '/var/tmp/rtcr-0.2.3.tar.gz'
 
 4.  Start WeeWX:
 
@@ -101,14 +101,14 @@ Manual installation
 clientraw extension [releases page](https://github.com/gjr80/weewx-realtime_clientraw/releases) 
 into a directory accessible from the WeeWX machine.
 
-        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.2.2/rtcr-0.2.2.tar.gz
+        wget -P $DOWNLOAD_ROOT https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.2.3/rtcr-0.2.3.tar.gz
 
     where $DOWNLOAD_ROOT is the path to the directory where the Realtime 
     clientraw extension is to be downloaded.
 
 2.  Unpack the extension as follows:
 
-    tar xvfz rtcr-0.2.2.tar.gz
+    tar xvfz rtcr-0.2.3.tar.gz
 
 3.  Copy files from within the resulting directory as follows:
 
