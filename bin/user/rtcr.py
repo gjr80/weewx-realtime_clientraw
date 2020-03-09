@@ -26,6 +26,8 @@ Revision History
           exceptions can be trapped and logged rather than the thread silently
           dieing
         - changed to python 2/3 compatible fixed except syntax
+        - fixed incorrect instructions for setting additional_binding config
+          item when there is no additional binding
     1 March 2020        v0.2.2
         - fix exception caused when there is no windDir (windDir == None)
     22 June 2019        v0.2.1
@@ -91,8 +93,9 @@ Abbreviated instructions for use:
     period). Optional, default is 0.
     min_interval =
 
-    # Binding to use for appTemp data. Optional, default None.
-    additional_binding = None
+    # Binding to use for appTemp data. Optional, leave blank for no binding for
+    # appTemp data. Default is no additional binding.
+    additional_binding =
 
     # Update windrun value each loop period or just on each archive period.
     # Optional, default is False.
