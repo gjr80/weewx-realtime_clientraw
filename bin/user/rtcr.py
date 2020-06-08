@@ -174,6 +174,7 @@ from operator import itemgetter
 # Python 2/3 compatibility shims
 # TODO. Can remove this import ?
 # import six
+from six import iteritems
 from six.moves import http_client
 from six.moves import queue
 from six.moves import urllib
@@ -242,7 +243,7 @@ except ImportError:
 
 
 # version number of this script
-RTCR_VERSION = '0.3.0'
+RTCR_VERSION = '0.3.0a1'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -885,7 +886,7 @@ class RealtimeClientrawThread(threading.Thread):
         """
 
         if package is not None:
-            for key, value in package.iteritems():
+            for key, value in iteritems(package):
                 setattr(self, key, value)
 
     def new_archive_record(self, record):
