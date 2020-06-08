@@ -1,3 +1,5 @@
+v0.3.0
+*   now WeeWX 3.4+/4.x python 2.7/3.x compatible
 v0.2.3
 *   fixed missing conversion to integer on some numeric config items
 *   added try..except around the main thread code so that thread exceptions can
