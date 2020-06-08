@@ -17,9 +17,11 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.2.3                                          Date: 9 March 2020
+Version: 0.3.0                                          Date: 9 June 2020
 
 Revision History
+    9 June 2020         v0.3.0
+        - WeeWX 3.4+/4.x python 2.7/3.x compatible
     9 March 2020        v0.2.3
         - fixed missing conversion to integer on some numeric config items
         - added try..except around the main thread code so that thread
@@ -159,19 +161,22 @@ Alternative Dashboard
 """
 
 # python imports
-import Queue
 import datetime
-import httplib
 import math
 import os.path
 import socket
 import sys
-import syslog
 import threading
 import time
-import urllib2
 
 from operator import itemgetter
+
+# Python 2/3 compatibility shims
+# TODO. Can remove this import ?
+# import six
+from six.moves import http_client
+from six.moves import queue
+from six.moves import urllib
 
 # WeeWX imports
 import weewx
@@ -183,8 +188,61 @@ from weewx.engine import StdService
 from weewx.units import ValueTuple, convert, ListOfDicts
 from weeutil.weeutil import to_bool, to_int
 
+# import/setup logging, WeeWX v3 is syslog based but WeeWX v4 is logging based,
+# try v4 logging and if it fails use v3 logging
+try:
+    # WeeWX4 logging
+    import logging
+    from weeutil.logger import log_traceback
+    log = logging.getLogger(__name__)
+
+    def logcrit(msg):
+        log.critical(msg)
+
+    def logdbg(msg):
+        log.debug(msg)
+
+    def logerr(msg):
+        log.error(msg)
+
+    def loginf(msg):
+        log.info(msg)
+
+    # log_traceback() generates the same output but the signature and code is
+    # different between v3 and v4. We only need log_traceback at the log.error
+    # level so define a suitable wrapper function.
+    def log_traceback_error(prefix=''):
+        log_traceback(log.error, prefix=prefix)
+
+except ImportError:
+    # WeeWX legacy (v3) logging via syslog
+    import syslog
+    from weeutil.weeutil import log_traceback
+
+    def logmsg(level, msg):
+        syslog.syslog(level, 'rtcr: %s' % msg)
+
+    def logcrit(msg):
+        logmsg(syslog.LOG_CRIT, msg)
+
+    def logdbg(msg):
+        logmsg(syslog.LOG_DEBUG, msg)
+
+    def logerr(msg):
+        logmsg(syslog.LOG_ERR, msg)
+
+    def loginf(msg):
+        logmsg(syslog.LOG_INFO, msg)
+
+    # log_traceback() generates the same output but the signature and code is
+    # different between v3 and v4. We only need log_traceback at the log.error
+    # level so define a suitable wrapper function.
+    def log_traceback_error(prefix=''):
+        log_traceback(prefix=prefix, loglevel=syslog.LOG_ERR)
+
+
 # version number of this script
-RTCR_VERSION = '0.2.3'
+RTCR_VERSION = '0.3.0'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -206,31 +264,6 @@ DEFAULT_GRACE = 200
 DEFAULT_TREND_PERIOD = 3600
 
 
-def logmsg(level, msg):
-    syslog.syslog(level, msg)
-
-
-def logcrit(id, msg):
-    logmsg(syslog.LOG_CRIT, '%s: %s' % (id, msg))
-
-
-def logdbg(id, msg):
-    logmsg(syslog.LOG_DEBUG, '%s: %s' % (id, msg))
-
-
-def logdbg2(id, msg):
-    if weewx.debug >= 2:
-        logmsg(syslog.LOG_DEBUG, '%s: %s' % (id, msg))
-
-
-def loginf(id, msg):
-    logmsg(syslog.LOG_INFO, '%s: %s' % (id, msg))
-
-
-def logerr(id, msg):
-    logmsg(syslog.LOG_ERR, '%s: %s' % (id, msg))
-
-
 # ============================================================================
 #                          class RealtimeClientraw
 # ============================================================================
@@ -241,15 +274,15 @@ class RealtimeClientraw(StdService):
 
     Creates and controls a threaded object of class RealtimeClientrawThread
     that generates clientraw.txt. Data is fed to the RealtimeClientrawThread
-    object via an instance of Queue.Queue.
+    object via an instance of rtcr_queue.Queue.
     """
 
     def __init__(self, engine, config_dict):
         # initialize my superclass
         super(RealtimeClientraw, self).__init__(engine, config_dict)
 
-        # our queue
-        self.rtcr_queue = Queue.Queue()
+        # our rtcr_queue
+        self.rtcr_queue = queue.Queue()
 
         # get a db manager object
         manager_dict = weewx.manager.get_manager_dict_from_config(config_dict,
@@ -283,89 +316,92 @@ class RealtimeClientraw(StdService):
 
         # grace
         self.grace = to_int(rtcr_config_dict.get('grace', DEFAULT_GRACE))
-        
+
         # seed our RealtimeClientrawThread object
         self.queue_stats(int(time.time()))
-        
+
         # bind ourself to the relevant weeWX events
         self.bind(weewx.NEW_LOOP_PACKET, self.new_loop_packet)
         self.bind(weewx.NEW_ARCHIVE_RECORD, self.new_archive_record)
         self.bind(weewx.END_ARCHIVE_PERIOD, self.end_archive_period)
 
     def new_loop_packet(self, event):
-        """Puts new loop packets in the rtcr queue."""
+        """Puts new loop packets in the rtcr rtcr_queue."""
 
         # package the loop packet in a dict since this is not the only data
-        # we send via the queue
+        # we send via the rtcr_queue
         _package = {'type': 'loop',
                     'payload': event.packet}
         self.rtcr_queue.put(_package)
-        logdbg2("rtcr", "queued loop packet: %s" % _package['payload'])
+        if weewx.debug >= 2:
+            logdbg("queued loop packet: %s" % _package['payload'])
 
     def new_archive_record(self, event):
-        """Puts archive records in the rtcr queue."""
+        """Puts archive records in the rtcr rtcr_queue."""
 
         # package the archive record in a dict since this is not the only data
-        # we send via the queue
+        # we send via the rtcr_queue
         _package = {'type': 'archive',
                     'payload': event.record}
         self.rtcr_queue.put(_package)
-        logdbg2("rtcr", "queued archive record: %s" % _package['payload'])
+        if weewx.debug >= 2:
+            logdbg("queued archive record: %s" % _package['payload'])
         self.queue_stats(event.record['dateTime'])
-        
+
     def queue_stats(self, ts):
-        
-        # get yesterdays rainfall and put in the queue
+
+        # get yesterdays rainfall and put in the rtcr_queue
         _rain_data = self.get_historical_rain(ts)
         # package the data in a dict since this is not the only data we send
-        # via the queue
+        # via the rtcr_queue
         _package = {'type': 'stats',
                     'payload': _rain_data}
         self.rtcr_queue.put(_package)
-        logdbg2("rtcr",
-                "queued historical rainfall data: %s" % _package['payload'])
-        # get max gust in the last hour and put in the queue
+        if weewx.debug >= 2:
+            logdbg("queued historical rainfall data: %s" % _package['payload'])
+        # get max gust in the last hour and put in the rtcr_queue
         _hour_gust = self.get_hour_gust(ts)
         # package the data in a dict since this is not the only data we send
-        # via the queue
+        # via the rtcr_queue
         _package = {'type': 'stats',
                     'payload': _hour_gust}
         self.rtcr_queue.put(_package)
-        logdbg2("rtcr",
-                "queued last hour gust: %s" % _package['payload'])
-        # get outTemp 1 hour ago and put in the queue
+        if weewx.debug >= 2:
+            logdbg("queued last hour gust: %s" % _package['payload'])
+        # get outTemp 1 hour ago and put in the rtcr_queue
         _hour_temp = self.get_hour_ago_temp(ts)
         # package the data in a dict since this is not the only data we send
-        # via the queue
+        # via the rtcr_queue
         _package = {'type': 'stats',
                     'payload': _hour_temp}
         self.rtcr_queue.put(_package)
-        logdbg2("rtcr",
-                "queued outTemp hour ago: %s" % _package['payload'])
-    
+        if weewx.debug >= 2:
+            logdbg("queued outTemp hour ago: %s" % _package['payload'])
+
     def end_archive_period(self, event):
-        """Puts END_ARCHIVE_PERIOD event in the rtcr queue."""
+        """Puts END_ARCHIVE_PERIOD event in the rtcr rtcr_queue."""
 
         # package the event in a dict since this is not the only data we send
-        # via the queue
+        # via the rtcr_queue
         _package = {'type': 'event',
                     'payload': weewx.END_ARCHIVE_PERIOD}
         self.rtcr_queue.put(_package)
-        logdbg2("rtcr", "queued weewx.END_ARCHIVE_PERIOD event")
+        if weewx.debug >= 2:
+            logdbg("queued weewx.END_ARCHIVE_PERIOD event")
 
     def shutDown(self):
         """Shut down any threads."""
 
         if hasattr(self, 'rtcr_queue') and hasattr(self, 'rtcr_thread'):
-            if self.rtcr_queue and self.rtcr_thread.isAlive():
+            if self.rtcr_queue and self.rtcr_thread.is_alive():
                 # Put a None in the rtcr_queue to signal the thread to shutdown
                 self.rtcr_queue.put(None)
                 # Wait up to 20 seconds for the thread to exit:
                 self.rtcr_thread.join(20.0)
-                if self.rtcr_thread.isAlive():
-                    logerr("rtcr", "Unable to shut down %s thread" % self.rtcr_thread.name)
+                if self.rtcr_thread.is_alive():
+                    logerr("Unable to shut down %s thread" % self.rtcr_thread.name)
                 else:
-                    logdbg("rtcr", "Shut down %s thread." % self.rtcr_thread.name)
+                    logdbg("Shut down %s thread." % self.rtcr_thread.name)
 
     def get_minmax_obs(self, obs_type):
         """Obtain the alltime max/min values for an observation."""
@@ -508,10 +544,10 @@ class RealtimeClientraw(StdService):
         else:
             result['hour_gust_ts'] = _row[0]
         return result
-        
+
     def get_hour_ago_temp(self, ts):
         """Obtain the outTemp hour ago."""
-        
+
         result = {}
         (unit, group) = weewx.units.getStandardUnitType(self.db_manager.std_unit_system,
                                                         'outTemp')
@@ -534,13 +570,13 @@ class RealtimeClientraw(StdService):
 class RealtimeClientrawThread(threading.Thread):
     """Thread that generates clientraw.txt in near realtime."""
 
-    def __init__(self, queue, config_dict, manager_dict,
+    def __init__(self, rtcr_queue, config_dict, manager_dict,
                  location, latitude, longitude, altitude):
         # initialize my superclass:
         threading.Thread.__init__(self)
 
         self.setDaemon(True)
-        self.rtcr_queue = queue
+        self.rtcr_queue = rtcr_queue
         self.config_dict = config_dict
         self.manager_dict = manager_dict
 
@@ -689,14 +725,14 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             _msg = "RealtimeClientraw will generate %s. min_interval is %s seconds" % (self.rtcr_path_file,
                                                                                        self.min_interval)
-        loginf("rtcrthread", _msg)
+        loginf(_msg)
 
     def run(self):
-        """Collect packets from the rtcr queue and manage their processing.
+        """Collect packets from the rtcr rtcr_queue and manage their processing.
 
         Now that we are in a thread get a manager for our db so we can
         initialise our forecast and day stats. Once this is done we wait for
-        something in the rtcr queue.
+        something in the rtcr rtcr_queue.
         """
 
         # since we are running in a thread wrap in a try..except so we can trap
@@ -731,12 +767,14 @@ class RealtimeClientrawThread(threading.Thread):
             _rec = weewx.units.to_METRICWX(_rec)
             # get a CachedPacket object as our loop packet cache and prime it with
             # values from the last good archive record if available
-            logdbg2("rtcrthread", "initialising loop packet cache ...")
+            if weewx.debug >= 2:
+                logdbg("initialising loop packet cache ...")
             self.packet_cache = CachedPacket(_rec)
-            logdbg2("rtcrthread", "loop packet cache initialised")
+            if weewx.debug >= 2:
+                logdbg("loop packet cache initialised")
 
             # now run a continuous loop, waiting for records to appear in the rtcr
-            # queue then processing them.
+            # rtcr_queue then processing them.
             while True:
                 while True:
                     _package = self.rtcr_queue.get()
@@ -745,36 +783,37 @@ class RealtimeClientrawThread(threading.Thread):
                         return
                     elif _package['type'] == 'archive':
                         self.new_archive_record(_package['payload'])
-                        logdbg2("rtcrthread", "received archive record")
+                        if weewx.debug >= 2:
+                            logdbg("received archive record")
                         continue
                     elif _package['type'] == 'event':
                         if _package['payload'] == weewx.END_ARCHIVE_PERIOD:
-                            logdbg2("rtcrthread",
-                                    "received event - END_ARCHIVE_PERIOD")
+                            if weewx.debug >= 2:
+                                logdbg("received event - END_ARCHIVE_PERIOD")
                             self.end_archive_period()
                         continue
                     elif _package['type'] == 'stats':
-                        logdbg2("rtcrthread",
-                                "received stats package payload=%s" % (_package['payload'], ))
+                        if weewx.debug >= 2:
+                            logdbg("received stats package payload=%s" % (_package['payload'], ))
                         self.process_stats(_package['payload'])
-                        logdbg2("rtcrthread", "processed stats package")
+                        if weewx.debug >= 2:
+                            logdbg("processed stats package")
                         continue
-                    # if packets have backed up in the rtcr queue, trim it until
+                    # if packets have backed up in the rtcr rtcr_queue, trim it until
                     # it's no bigger than the max allowed backlog
                     if self.rtcr_queue.qsize() <= 5:
                         break
 
                 # if we made it here we have a loop packet to process
-                logdbg2("rtcrthread",
-                        "received packet: %s" % _package['payload'])
+                if weewx.debug >= 2:
+                    logdbg("received packet: %s" % _package['payload'])
                 self.process_packet(_package['payload'])
         except Exception as e:
             # Some unknown exception occurred. This is probably a serious
             # problem. Exit.
-            logcrit("rtcrthread",
-                    "Unexpected exception of type %s" % (type(e), ))
-            weeutil.weeutil.log_traceback('*** ', syslog.LOG_DEBUG)
-            logcrit("rtcrthread", "Thread exiting. Reason: %s" % (e, ))
+            logcrit("Unexpected exception of type %s" % (type(e), ))
+            log_traceback_error('**** ')
+            logcrit("Thread exiting. Reason: %s" % (e, ))
             return
 
     def process_packet(self, packet):
@@ -815,7 +854,8 @@ class RealtimeClientrawThread(threading.Thread):
                 # get a cached packet
                 cached_packet = self.packet_cache.get_packet(packet_wx['dateTime'],
                                                              self.max_cache_age)
-                logdbg2("rtcrthread", "cached loop packet: %s" % (cached_packet,))
+                if weewx.debug >= 2:
+                    logdbg("cached loop packet: %s" % (cached_packet,))
                 # get a data dict from which to construct our file
                 data = self.calculate(cached_packet)
                 # convert our data dict to a clientraw string
@@ -829,14 +869,13 @@ class RealtimeClientrawThread(threading.Thread):
                     # post the data
                     self.post_data(cr_string)
                 # log the generation
-                logdbg("rtcrthread",
-                       "packet (%s) clientraw.txt generated in %.5f seconds" % (cached_packet['dateTime'],
+                logdbg("packet (%s) clientraw.txt generated in %.5f seconds" % (cached_packet['dateTime'],
                                                                                 (self.last_write-t1)))
             except Exception as e:
-                weeutil.weeutil.log_traceback('rtcrthread: **** ')
+                log_traceback_error('rtcrthread: **** ')
         else:
             # we skipped this packet so log it
-            logdbg("rtcrthread", "packet (%s) skipped" % packet_wx['dateTime'])
+            logdbg("packet (%s) skipped" % packet_wx['dateTime'])
 
     def process_stats(self, package):
         """Process a stats package.
@@ -882,7 +921,7 @@ class RealtimeClientrawThread(threading.Thread):
         """
 
         # get a Request object
-        req = urllib2.Request(self.remote_server_url)
+        req = urllib.request.Request(self.remote_server_url)
         # set our content type to plain text
         req.add_header('Content-Type', 'text/plain')
         # POST the data but wrap in a try..except so we can trap any errors
@@ -895,36 +934,34 @@ class RealtimeClientrawThread(threading.Thread):
                 # not there then log it and return.
                 if self.response is not None and self.response not in response:
                     # didn't get 'success' so log it and continue
-                    logdbg("post_data",
-                           "Failed to post data: Unexpected response")
+                    logdbg("Failed to post data: Unexpected response")
                 return
             # we received a bad response code, log it and continue
-            logdbg("post_data",
-                   "Failed to post data: Code %s" % response.code())
-        except (urllib2.URLError, socket.error,
-                httplib.BadStatusLine, httplib.IncompleteRead) as e:
+            logdbg("Failed to post data: Code %s" % response.code())
+        except (urllib.error.URLError, socket.error,
+                http_client.BadStatusLine, http_client.IncompleteRead) as e:
             # an exception was thrown, log it and continue
-            logdbg("post_data", "Failed to post data: %s" % e)
+            logdbg("Failed to post data: %s" % e)
 
     def post_request(self, request, payload):
         """Post a Request object.
 
         Inputs:
-            request: urllib2 Request object
+            request: urllib.request Request object
             payload: the data to sent
 
         Returns:
-            The urllib2.urlopen() response
+            The urllib.request.urlopen() response
         """
 
         try:
             # Python 2.5 and earlier do not have a "timeout" parameter.
             # Including one could cause a TypeError exception. Be prepared
             # to catch it.
-            _response = urllib2.urlopen(request, data=payload, timeout=self.timeout)
+            _response = urllib.request.urlopen(request, data=payload, timeout=self.timeout)
         except TypeError:
             # Must be Python 2.5 or early. Use a simple, unadorned request
-            _response = urllib2.urlopen(request, data=payload)
+            _response = urllib.request.urlopen(request, data=payload)
         return _response
 
     def write_data(self, data):
@@ -1265,13 +1302,13 @@ class RealtimeClientrawThread(threading.Thread):
         for h in range(0, 10):
             data[80+h] = 0.0
         # 090 - hour temperature 01 (Celsius)
-        hour_ago_outTemp_vt = getattr(self, 'hour_ago_outTemp_vt',
+        hour_ago_outtemp_vt = getattr(self, 'hour_ago_outTemp_vt',
                                       ValueTuple(None, 'degree_C', 'group_temperature'))
         try:
-            hour_ago_outTemp = convert(hour_ago_outTemp_vt, 'degree_C').value
+            hour_ago_outtemp = convert(hour_ago_outtemp_vt, 'degree_C').value
         except KeyError:
-            hour_ago_outTemp = None
-        data[90] = hour_ago_outTemp if hour_ago_outTemp is not None else 0.0
+            hour_ago_outtemp = None
+        data[90] = hour_ago_outtemp if hour_ago_outtemp is not None else 0.0
         # 091-099 - hour temperature 02-10 (Celsius) - will not implement
         for h in range(0, 9):
             data[91+h] = 0.0
@@ -1292,20 +1329,20 @@ class RealtimeClientrawThread(threading.Thread):
         data[112] = packet['heatindex'] if packet['heatindex'] is not None else 0.0
         # 113 - maximum average speed (knot)
         if 'windSpeed' in self.buffer:
-            windSpeed_tm_loop = self.buffer['windSpeed'].day_max
+            windspeed_tm_loop = self.buffer['windSpeed'].day_max
         else:
-            windSpeed_tm_loop = 0.0
+            windspeed_tm_loop = 0.0
         if 'windSpeed' in self.day_stats:
-            windSpeed_tm = self.day_stats['windSpeed'].max
+            windspeed_tm = self.day_stats['windSpeed'].max
         else:
-            windSpeed_tm = 0.0
-        windSpeed_tm = weeutil.weeutil.max_with_none([windSpeed_tm, windSpeed_tm_loop])
-        windSpeed_tm_vt = ValueTuple(windSpeed_tm, 'km_per_hour', 'group_speed')
+            windspeed_tm = 0.0
+        windspeed_tm = weeutil.weeutil.max_with_none([windspeed_tm, windspeed_tm_loop])
+        windspeed_tm_vt = ValueTuple(windspeed_tm, 'km_per_hour', 'group_speed')
         try:
-            windSpeed_tm = convert(windSpeed_tm_vt, 'knot').value
+            windspeed_tm = convert(windspeed_tm_vt, 'knot').value
         except KeyError:
-            windSpeed_tm = None
-        data[113] = windSpeed_tm if windSpeed_tm is not None else 0.0
+            windspeed_tm = None
+        data[113] = windspeed_tm if windspeed_tm is not None else 0.0
         # 114 - lightning count in last minute - will not implement
         data[114] = 0
         # 115 - time of last lightning strike - will not implement
@@ -1365,25 +1402,25 @@ class RealtimeClientrawThread(threading.Thread):
         # 128 - maximum inTemp (Celsius)
         # 129 - minimum inTemp (Celsius)
         if 'inTemp' in self.buffer:
-            inTemp_th = self.buffer['inTemp'].day_max
-            inTemp_tl = self.buffer['inTemp'].day_min
+            intemp_th = self.buffer['inTemp'].day_max
+            intemp_tl = self.buffer['inTemp'].day_min
         else:
-            inTemp_th = None
-            inTemp_tl = None
-        data[128] = inTemp_th if inTemp_th is not None else 0.0
-        data[129] = inTemp_tl if inTemp_tl is not None else 0.0
+            intemp_th = None
+            intemp_tl = None
+        data[128] = intemp_th if intemp_th is not None else 0.0
+        data[129] = intemp_tl if intemp_tl is not None else 0.0
         # 130 - appTemp (Celsius)
         if 'appTemp' in packet:
             app_temp = packet['appTemp']
         elif 'windSpeed' in packet and 'outTemp' in packet and 'outHumidity' in packet:
-            windSpeed_vt = ValueTuple(packet['windSpeed'], 'km_per_hour', 'group_speed')
+            windspeed_vt = ValueTuple(packet['windSpeed'], 'km_per_hour', 'group_speed')
             try:
-                windSpeed_ms = convert(windSpeed_vt, 'meter_per_second').value
+                windspeed_ms = convert(windspeed_vt, 'meter_per_second').value
             except KeyError:
-                windSpeed_ms = None
+                windspeed_ms = None
             app_temp = weewx.wxformulas.apptempC(packet['outTemp'],
                                                  packet['outHumidity'],
-                                                 windSpeed_ms)
+                                                 windspeed_ms)
         else:
             app_temp = None
         data[130] = app_temp if app_temp is not None else 0.0
@@ -1401,17 +1438,17 @@ class RealtimeClientrawThread(threading.Thread):
         hour_gust_vt = getattr(self, 'hour_gust_vt',
                                ValueTuple(0, 'knot', 'group_speed'))
         if hour_gust_vt.value and 'windSpeed' in self.buffer:
-            windSpeed_tm_loop = self.buffer['windSpeed'].day_max
+            windspeed_tm_loop = self.buffer['windSpeed'].day_max
         else:
-            windSpeed_tm_loop = None
-        windGust60_ms = weeutil.weeutil.max_with_none([hour_gust_vt.value,
-                                                       windSpeed_tm_loop])
-        windGust60_vt = ValueTuple(windGust60_ms, 'meter_per_second', 'group_speed')
+            windspeed_tm_loop = None
+        windgust60_ms = weeutil.weeutil.max_with_none([hour_gust_vt.value,
+                                                       windspeed_tm_loop])
+        windgust60_vt = ValueTuple(windgust60_ms, 'meter_per_second', 'group_speed')
         try:
-            windGust60 = convert(windGust60_vt, 'knot').value
+            windgust60 = convert(windgust60_vt, 'knot').value
         except KeyError:
-            windGust60 = None
-        data[133] = windGust60 if windGust60 is not None else 0.0
+            windgust60 = None
+        data[133] = windgust60 if windgust60 is not None else 0.0
         # 134 - maximum windGust in last hour time
         hour_gust_ts = getattr(self, 'hour_gust_ts', None)
         if 'windSpeed' in self.buffer:
@@ -1419,34 +1456,34 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             buffer_ot = ObsTuple(None, None)
         if hour_gust_vt.value is None:
-            windGust60_ts = buffer_ot.ts
+            windgust60_ts = buffer_ot.ts
         elif buffer_ot.value is None:
-            windGust60_ts = hour_gust_ts
-        elif buffer_ot.value > windGust60_ms:
-            windGust60_ts = buffer_ot.ts
+            windgust60_ts = hour_gust_ts
+        elif buffer_ot.value > windgust60_ms:
+            windgust60_ts = buffer_ot.ts
         else:
-            windGust60_ts = hour_gust_ts
-        data[134] = time.strftime('%H:%M', time.localtime(windGust60_ts)) if windGust60_ts is not None else '00:00'
+            windgust60_ts = hour_gust_ts
+        data[134] = time.strftime('%H:%M', time.localtime(windgust60_ts)) if windgust60_ts is not None else '00:00'
         # 135 - maximum windGust today time
         if 'windSpeed' in self.buffer:
-            t_windGust_tm_ts = self.buffer['windSpeed'].day_maxtime
-            if t_windGust_tm_ts is not None:
-                t_windGust_tm = time.localtime(t_windGust_tm_ts)
+            t_windgust_tm_ts = self.buffer['windSpeed'].day_maxtime
+            if t_windgust_tm_ts is not None:
+                t_windgust_tm = time.localtime(t_windgust_tm_ts)
             else:
-                t_windGust_tm = time.localtime(packet['dateTime'])
+                t_windgust_tm = time.localtime(packet['dateTime'])
         else:
-            t_windGust_tm = time.localtime(packet['dateTime'])
-        data[135] = time.strftime('%H:%M', t_windGust_tm)
+            t_windgust_tm = time.localtime(packet['dateTime'])
+        data[135] = time.strftime('%H:%M', t_windgust_tm)
         # 136 - maximum day appTemp (Celsius)
         # 137 - minimum day appTemp (Celsius)
         if 'appTemp' in self.buffer:
-            appTemp_th = self.buffer['appTemp'].day_max
-            appTemp_tl = self.buffer['appTemp'].day_min
+            apptemp_th = self.buffer['appTemp'].day_max
+            apptemp_tl = self.buffer['appTemp'].day_min
         else:
-            appTemp_th = None
-            appTemp_tl = None
-        data[136] = appTemp_th if appTemp_th is not None else 0.0
-        data[137] = appTemp_tl if appTemp_tl is not None else 0.0
+            apptemp_th = None
+            apptemp_tl = None
+        data[136] = apptemp_th if apptemp_th is not None else 0.0
+        data[137] = apptemp_tl if apptemp_tl is not None else 0.0
         # 138 - maximum day dewpoint (Celsius)
         # 139 - minimum day dewpoint (Celsius)
         if 'dewpoint' in self.buffer:
@@ -1554,13 +1591,13 @@ class RealtimeClientrawThread(threading.Thread):
         # 163 - high day outHumidity
         # 164 - low day outHumidity
         if 'outHumidity' in self.buffer:
-            outHumidity_th = self.buffer['outHumidity'].day_max
-            outHumidity_tl = self.buffer['outHumidity'].day_min
+            outhumidity_th = self.buffer['outHumidity'].day_max
+            outhumidity_tl = self.buffer['outHumidity'].day_min
         else:
-            outHumidity_th = None
-            outHumidity_tl = None
-        data[163] = outHumidity_th if outHumidity_th is not None else 0.0
-        data[164] = outHumidity_tl if outHumidity_tl is not None else 0.0
+            outhumidity_th = None
+            outhumidity_tl = None
+        data[163] = outhumidity_th if outhumidity_th is not None else 0.0
+        data[164] = outhumidity_tl if outhumidity_tl is not None else 0.0
         # 165 - midnight rain reset total (mm)
         if 'dayRain' in packet:
             day_rain = packet['dayRain']
@@ -2136,6 +2173,8 @@ class RtcrBuffer(dict):
 
     def __init__(self, day_stats, additional_day_stats=None, unit_system=weewx.METRICWX):
         """Initialise an instance of our class."""
+        # initialize my superclass
+        super(RtcrBuffer, self).__init__()
 
         # seed our buffer objects from day_stats
         for obs in [f for f in day_stats if f in MANIFEST]:
@@ -2446,38 +2485,37 @@ def calc_trend(obs_type, now_vt, db_manager, then_ts, grace):
     return result
 
 
-def calc_wetbulb(Ta, RH, P):
+def calc_wetbulb(t_a, r_h, p):
     """Calculate wet bulb temperature.
 
         Uses formula:
 
-        WB = (((0.00066 * P) * Ta) + ((4098 * E)/((Tdc + 237.7) ** 2) * Tdc))/
-                 ((0.00066 * P) + (4098 * E)/((Tdc + 237.7) ** 2))
+        wb = (((0.00066 * p) * t_a) + ((4098 * big_e)/((t_dc + 237.7) ** 2) * t_dc))/
+                 ((0.00066 * p) + (4098 * big_e)/((t_dc + 237.7) ** 2))
 
         Where:
-            P = pressure (in hPa)
-            Ta = air temperature (in degree C)
-            RH = relative humidity (in %)
-            E = 6.11 * 10 ** (7.5 * Tdc/(237.7 + Tdc))
-            Tdc = Ta - (14.55 + 0.114 * Ta) * (1 - (0.01 * RH)) -
-                      ((2.5 + 0.007 * Ta) * (1 - (0.01 * RH))) ** 3 -
-                      (15.9 + 0.117 * Ta) * (1 - (0.01 * RH)) ** 14
+            p = pressure (in hPa)
+            t_a = air temperature (in degree C)
+            r_h = relative humidity (in %)
+            big_e = 6.11 * 10 ** (7.5 * t_dc/(237.7 + t_dc))
+            t_dc = t_a - (14.55 + 0.114 * t_a) * (1 - (0.01 * r_h)) -
+                      ((2.5 + 0.007 * t_a) * (1 - (0.01 * r_h))) ** 3 -
+                      (15.9 + 0.117 * t_a) * (1 - (0.01 * r_h)) ** 14
 
         Input:
-            Ta: temperature in Celsius
-            RH: humidity in %
-            P:  pressure in hPa
+            t_a: temperature in Celsius
+            r_h: humidity in %
+            p:  pressure in hPa
 
         Returns:    Wet bulb in degree C. Can be None.
     """
 
-    if Ta is None or RH is None or P is None:
+    if t_a is None or r_h is None or p is None:
         return None
-    Tdc = Ta - (14.55 + 0.114 * Ta) * (1 - (0.01 * RH)) -\
-        ((2.5 + 0.007 * Ta) * (1 - (0.01 * RH))) ** 3 -\
-        (15.9 + 0.117 * Ta) * (1 - (0.01 * RH)) ** 14
-    E = 6.11 * 10 ** (7.5 * Tdc / (237.7 + Tdc))
-    WB = (((0.00066 * P) * Ta) + ((4098 * E) / ((Tdc + 237.7) ** 2) * Tdc)) / \
-         ((0.00066 * P) + (4098 * E) / ((Tdc + 237.7) ** 2))
-    return WB
-
+    t_dc = t_a - (14.55 + 0.114 * t_a) * (1 - (0.01 * r_h)) - \
+        ((2.5 + 0.007 * t_a) * (1 - (0.01 * r_h))) ** 3 - \
+        (15.9 + 0.117 * t_a) * (1 - (0.01 * r_h)) ** 14
+    big_e = 6.11 * 10 ** (7.5 * t_dc / (237.7 + t_dc))
+    wb = (((0.00066 * p) * t_a) + ((4098 * big_e) / ((t_dc + 237.7) ** 2) * t_dc)) / \
+         ((0.00066 * p) + (4098 * big_e) / ((t_dc + 237.7) ** 2))
+    return wb
