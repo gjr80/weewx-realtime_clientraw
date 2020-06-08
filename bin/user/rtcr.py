@@ -119,15 +119,15 @@ Abbreviated instructions for use:
     humidity_trend_period = 3600
     humidex_trend_period = 3600
 
-    # Largest acceptable difference in seconds for whch a record is considered
+    # Largest acceptable difference in seconds for which a record is considered
     # a match. Optional, default is 200.
     grace = 200
 
 4.  Add the RealtimeClientraw service to the list of report services under
-[Engines] [[WxEngine]] in weewx.conf:
+[Engine] [[Services]] in weewx.conf:
 
-[Engines]
-    [[WxEngine]]
+[Engine]
+    [[Services]]
         report_services = ..., user.rtcr.RealtimeClientraw
 
 5.  Stop/start WeeWX
