@@ -243,7 +243,7 @@ except ImportError:
 
 
 # version number of this script
-RTCR_VERSION = '0.3.0a1'
+RTCR_VERSION = '0.3.0a2'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -2292,7 +2292,8 @@ class RtcrBuffer(dict):
         """
 
         for obs in MANIFEST:
-            self[obs].day_reset()
+            if obs in self:
+                self[obs].day_reset()
 
     def nineam_reset(self):
         """Reset our buffer stats at the end of an archive period.
