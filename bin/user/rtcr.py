@@ -997,7 +997,13 @@ class RealtimeClientrawThread(threading.Thread):
         temp_unit, temp_group = getStandardUnitType(self.buffer.unit_system,
                                                     'outTemp')
         rain_unit, rain_group = getStandardUnitType(self.buffer.unit_system,
-                                                    'outTemp')
+                                                    'rain')
+        rainrate_unit, rainrate_group = getStandardUnitType(self.buffer.unit_system,
+                                                            'rainRate')
+        press_unit, press_group = getStandardUnitType(self.buffer.unit_system,
+                                                      'pressure')
+        dist_unit, dist_group = getStandardUnitType(self.buffer.unit_system,
+                                                    'windrun')
         data = dict()
         # preamble
         data[0] = '12345'
@@ -1080,9 +1086,12 @@ class RealtimeClientrawThread(threading.Thread):
         data[10] = packet_wx['rainRate'] / 60.0 if packet_wx['rainRate'] is not None else 0.0
         # 011 - max daily rainRate (mm per minute - not hour)
         if 'rainRate' in self.buffer:
-            rain_rate_th = self.buffer['rainRate'].day_max
+            rain_rate_th_vt = ValueTuple(self.buffer['rainRate'].day_max,
+                                         rainrate_unit,
+                                         rainrate_group)
         else:
-            rain_rate_th = None
+            rain_rate_th_vt = ValueTuple(None, rainrate_unit, rainrate_group)
+        rain_rate_th = convert(rain_rate_th_vt, 'mm_per_hour')
         data[11] = rain_rate_th/60.0 if rain_rate_th is not None else 0.0
         # 012 - inTemp (Celsius)
         data[12] = packet_wx['inTemp'] if packet_wx['inTemp'] is not None else 0.0
@@ -1303,21 +1312,33 @@ class RealtimeClientrawThread(threading.Thread):
         # 075 - maximum day humidex (Celsius)
         # 076 - minimum day humidex (Celsius)
         if 'humidex' in self.buffer:
-            humidex_th = self.buffer['humidex'].day_max
-            humidex_tl = self.buffer['humidex'].day_min
+            humidex_th_vt = ValueTuple(self.buffer['humidex'].day_max,
+                                       temp_unit,
+                                       temp_group)
+            humidex_tl_vt = ValueTuple(self.buffer['humidex'].day_min,
+                                       temp_unit,
+                                       temp_group)
         else:
-            humidex_th = None
-            humidex_tl = None
+            humidex_th_vt = ValueTuple(None, temp_unit, temp_group)
+            humidex_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        humidex_th = convert(humidex_th_vt, 'degree_C')
+        humidex_tl = convert(humidex_tl_vt, 'degree_C')
         data[75] = humidex_th if humidex_th is not None else 0.0
         data[76] = humidex_tl if humidex_tl is not None else 0.0
         # 077 - maximum day windchill (Celsius)
         # 078 - minimum day windchill (Celsius)
         if 'windchill' in self.buffer:
-            windchill_th = self.buffer['windchill'].day_max
-            windchill_tl = self.buffer['windchill'].day_min
+            windchill_th = ValueTuple(self.buffer['windchill'].day_max,
+                                      temp_unit,
+                                      temp_group)
+            windchill_tl = ValueTuple(self.buffer['windchill'].day_min,
+                                      temp_unit,
+                                      temp_group)
         else:
-            windchill_th = None
-            windchill_tl = None
+            windchill_th = ValueTuple(None, temp_unit, temp_group)
+            windchill_tl = ValueTuple(None, temp_unit, temp_group)
+        windchill_th = convert(windchill_th_vt, 'degree_C')
+        windchill_tl = convert(windchill_tl_vt, 'degree_C')
         data[77] = windchill_th if windchill_th is not None else 0.0
         data[78] = windchill_tl if windchill_tl is not None else 0.0
         # 079 - davis vp UV
@@ -1342,11 +1363,17 @@ class RealtimeClientrawThread(threading.Thread):
         # 110 - maximum day heatindex (Celsius)
         # 111 - minimum day heatindex (Celsius)
         if 'heatindex' in self.buffer:
-            heatindex_th = self.buffer['heatindex'].day_max
-            heatindex_tl = self.buffer['heatindex'].day_min
+            heatindex_th_vt = ValueTuple(self.buffer['heatindex'].day_max,
+                                         temp_unit,
+                                         temp_group)
+            heatindex_tl_vt = ValueTuple(self.buffer['heatindex'].day_min,
+                                         temp_unit,
+                                         temp_group)
         else:
-            heatindex_th = None
-            heatindex_tl = None
+            heatindex_th_vt = ValueTuple(None, temp_unit, temp_group)
+            heatindex_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        heatindex_th = convert(heatindex_th_vt, 'degree_C')
+        heatindex_tl = convert(heatindex_tl_vt, 'degree_C')
         data[110] = heatindex_th if heatindex_th is not None else 0.0
         data[111] = heatindex_tl if heatindex_tl is not None else 0.0
         # 112 - heatindex (Celsius)
@@ -1426,11 +1453,17 @@ class RealtimeClientrawThread(threading.Thread):
         # 128 - maximum inTemp (Celsius)
         # 129 - minimum inTemp (Celsius)
         if 'inTemp' in self.buffer:
-            intemp_th = self.buffer['inTemp'].day_max
-            intemp_tl = self.buffer['inTemp'].day_min
+            intemp_th_vt = ValueTuple(self.buffer['inTemp'].day_max,
+                                      temp_unit,
+                                      temp_group)
+            intemp_tl_vt = ValueTuple(self.buffer['inTemp'].day_min,
+                                      temp_unit,
+                                      temp_group)
         else:
-            intemp_th = None
-            intemp_tl = None
+            intemp_th_vt = ValueTuple(None, temp_unit, temp_group)
+            intemp_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        intemp_th = convert(intemp_th_vt, 'degree_C')
+        intemp_tl = convert(intemp_tl_vt, 'degree_C')
         data[128] = intemp_th if intemp_th is not None else 0.0
         data[129] = intemp_tl if intemp_tl is not None else 0.0
         # 130 - appTemp (Celsius)
@@ -1446,27 +1479,32 @@ class RealtimeClientrawThread(threading.Thread):
         # 131 - maximum barometer (hPa)
         # 132 - minimum barometer (hPa)
         if 'barometer' in self.buffer:
-            barometer_th = self.buffer['barometer'].day_max
-            barometer_tl = self.buffer['barometer'].day_min
+            barometer_th_vt = ValueTuple(self.buffer['barometer'].day_max,
+                                         press_unit,
+                                         press_group)
+            barometer_tl_vt = ValueTuple(self.buffer['barometer'].day_min,
+                                         press_unit,
+                                         press_group)
         else:
-            barometer_th = None
-            barometer_tl = None
+            barometer_th_vt = ValueTuple(None, press_unit, press_group)
+            barometer_tl_vt = ValueTuple(None, press_unit, press_group)
+        barometer_th = convert(barometer_th_vt, 'hPa')
+        barometer_tl = convert(barometer_tl_vt, 'hPa')
         data[131] = barometer_th if barometer_th is not None else 0.0
         data[132] = barometer_tl if barometer_tl is not None else 0.0
         # 133 - maximum windGust last hour (knot)
         hour_gust_vt = getattr(self, 'hour_gust_vt',
                                ValueTuple(0, 'knot', 'group_speed'))
+        hour_gust = convert(hour_gust_vt, 'knot').value
         if hour_gust_vt.value and 'windSpeed' in self.buffer:
-            windspeed_tm_loop = self.buffer['windSpeed'].day_max
+            windspeed_tm_loop_vt = ValueTuple(self.buffer['windSpeed'].day_max,
+                                              speed_unit,
+                                              speed_group)
+            windspeed_tm_loop = convert(windspeed_tm_loop_vt, 'knot').value
         else:
             windspeed_tm_loop = None
-        windgust60_ms = weeutil.weeutil.max_with_none([hour_gust_vt.value,
-                                                       windspeed_tm_loop])
-        windgust60_vt = ValueTuple(windgust60_ms, speed_unit, speed_group)
-        try:
-            windgust60 = convert(windgust60_vt, 'knot').value
-        except KeyError:
-            windgust60 = None
+        windgust60 = weeutil.weeutil.max_with_none([hour_gust,
+                                                    windspeed_tm_loop])
         data[133] = windgust60 if windgust60 is not None else 0.0
         # 134 - maximum windGust in last hour time
         hour_gust_ts = getattr(self, 'hour_gust_ts', None)
@@ -1496,21 +1534,33 @@ class RealtimeClientrawThread(threading.Thread):
         # 136 - maximum day appTemp (Celsius)
         # 137 - minimum day appTemp (Celsius)
         if 'appTemp' in self.buffer:
-            apptemp_th = self.buffer['appTemp'].day_max
-            apptemp_tl = self.buffer['appTemp'].day_min
+            apptemp_th_vt = ValueTuple(self.buffer['appTemp'].day_max,
+                                       temp_unit,
+                                       temp_group)
+            apptemp_tl_vt = ValueTuple(self.buffer['appTemp'].day_min,
+                                       temp_unit,
+                                       temp_group)
         else:
-            apptemp_th = None
-            apptemp_tl = None
+            apptemp_th_vt = ValueTuple(None, temp_unit, temp_group)
+            apptemp_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        apptemp_th = convert(apptemp_th_vt, 'degree_C')
+        apptemp_tl = convert(apptemp_tl_vt, 'degree_C')
         data[136] = apptemp_th if apptemp_th is not None else 0.0
         data[137] = apptemp_tl if apptemp_tl is not None else 0.0
         # 138 - maximum day dewpoint (Celsius)
         # 139 - minimum day dewpoint (Celsius)
         if 'dewpoint' in self.buffer:
-            dewpoint_th = self.buffer['dewpoint'].day_max
-            dewpoint_tl = self.buffer['dewpoint'].day_min
+            dewpoint_th_vt = ValueTuple(self.buffer['dewpoint'].day_max,
+                                        temp_unit,
+                                        temp_group)
+            dewpoint_tl_vt = ValueTuple(self.buffer['dewpoint'].day_min,
+                                        temp_unit,
+                                        temp_group)
         else:
-            dewpoint_th = None
-            dewpoint_tl = None
+            dewpoint_th_vt = ValueTuple(None, temp_unit, temp_group)
+            dewpoint_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        dewpoint_th = convert(dewpoint_th_vt, 'degree_C')
+        dewpoint_tl = convert(dewpoint_tl_vt, 'degree_C')
         data[138] = dewpoint_th if dewpoint_th is not None else 0.0
         data[139] = dewpoint_tl if dewpoint_tl is not None else 0.0
         # 140 - maximum windGust in last minute (knot)
@@ -1602,7 +1652,10 @@ class RealtimeClientrawThread(threading.Thread):
         # 161 -  longitude (-ve for east)
         data[161] = -1 * self.longitude
         # 162 - 9am reset rainfall total (mm)
-        data[162] = self.buffer['rain'].nineam_sum
+        nineam_rain_vt = ValueTuple(self.buffer['rain'].nineam_sum,
+                                    rain_unit,
+                                    rain_group)
+        data[162] = convert(nineam_rain_vt, 'mm')
         # 163 - high day outHumidity
         # 164 - low day outHumidity
         if 'outHumidity' in self.buffer:
@@ -1617,7 +1670,10 @@ class RealtimeClientrawThread(threading.Thread):
         if 'dayRain' in packet_wx:
             day_rain = packet_wx['dayRain']
         elif 'rain' in self.buffer:
-            day_rain = self.buffer['rain'].day_sum
+            day_rain_vt = ValueTuple(self.buffer['rain'].day_sum,
+                                     rain_unit,
+                                     rain_group)
+            day_rain = convert(day_rain_vt, 'mm')
         else:
             day_rain = None
         data[165] = day_rain if day_rain is not None else 0.0
@@ -1644,7 +1700,11 @@ class RealtimeClientrawThread(threading.Thread):
         # 172 - Current Cost Channel 6 - will not implement
         data[172] = 0.0
         # 173 - day windrun
-        data[173] = self.buffer.windrun if self.buffer.windrun is not None else 0.0
+        windrun_vt = ValueTuple(self.buffer.windrun,
+                                dist_unit,
+                                dist_group)
+        windrun = convert(windrun_vt, 'km')
+        data[173] = windrun if windrun is not None else 0.0
         # 174 - record end (WD Version)
         data[174] = '!!EOR!!'
         return data
