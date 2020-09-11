@@ -1052,7 +1052,7 @@ class RealtimeClientrawThread(threading.Thread):
                                      rain_group)
         else:
             day_rain_vt = ValueTuple(None, 'mm', 'group_rain')
-        day_rain = convert(day_rain_vt, 'mm')
+        day_rain = convert(day_rain_vt, 'mm').value
         data[7] = day_rain if day_rain is not None else 0.0
         # 008 - monthly rain
         month_rain_vt = getattr(self, 'month_rain_vt',
@@ -1091,7 +1091,7 @@ class RealtimeClientrawThread(threading.Thread):
                                          rainrate_group)
         else:
             rain_rate_th_vt = ValueTuple(None, rainrate_unit, rainrate_group)
-        rain_rate_th = convert(rain_rate_th_vt, 'mm_per_hour')
+        rain_rate_th = convert(rain_rate_th_vt, 'mm_per_hour').value
         data[11] = rain_rate_th/60.0 if rain_rate_th is not None else 0.0
         # 012 - inTemp (Celsius)
         data[12] = packet_wx['inTemp'] if packet_wx['inTemp'] is not None else 0.0
@@ -1102,7 +1102,7 @@ class RealtimeClientrawThread(threading.Thread):
             soil_temp = packet_wx[self.soil_temp]
         else:
             soil_temp = None
-        data[14] = soil_temp if soil_temp is not None else 0.0
+        data[14] = soil_temp if soil_temp is not None else 100.0
         # FIXME. Need to implement field 15
         # 015 - Forecast Icon
         data[15] = 0
@@ -1125,55 +1125,55 @@ class RealtimeClientrawThread(threading.Thread):
             extra_temp1 = packet_wx[self.extra_temp1]
         else:
             extra_temp1 = None
-        data[20] = extra_temp1 if extra_temp1 is not None else 0.0
+        data[20] = extra_temp1 if extra_temp1 is not None else -100.0
         # 021 - extra temperature sensor 2 (Celsius)
         if self.extra_temp2 and self.extra_temp2 in packet_wx:
             extra_temp2 = packet_wx[self.extra_temp2]
         else:
             extra_temp2 = None
-        data[21] = extra_temp2 if extra_temp2 is not None else 0.0
+        data[21] = extra_temp2 if extra_temp2 is not None else -100.0
         # 022 - extra temperature sensor 3 (Celsius)
         if self.extra_temp3 and self.extra_temp3 in packet_wx:
             extra_temp3 = packet_wx[self.extra_temp3]
         else:
             extra_temp3 = None
-        data[22] = extra_temp3 if extra_temp3 is not None else 0.0
+        data[22] = extra_temp3 if extra_temp3 is not None else -100.0
         # 023 - extra temperature sensor 4 (Celsius)
         if self.extra_temp4 and self.extra_temp4 in packet_wx:
             extra_temp4 = packet_wx[self.extra_temp4]
         else:
             extra_temp4 = None
-        data[23] = extra_temp4 if extra_temp4 is not None else 0.0
+        data[23] = extra_temp4 if extra_temp4 is not None else -100.0
         # 024 - extra temperature sensor 5 (Celsius)
         if self.extra_temp5 and self.extra_temp5 in packet_wx:
             extra_temp5 = packet_wx[self.extra_temp5]
         else:
             extra_temp5 = None
-        data[24] = extra_temp5 if extra_temp5 is not None else 0.0
+        data[24] = extra_temp5 if extra_temp5 is not None else -100.0
         # 025 - extra temperature sensor 6 (Celsius)
         if self.extra_temp6 and self.extra_temp6 in packet_wx:
             extra_temp6 = packet_wx[self.extra_temp6]
         else:
             extra_temp6 = None
-        data[25] = extra_temp6 if extra_temp6 is not None else 0.0
+        data[25] = extra_temp6 if extra_temp6 is not None else -100.0
         # 026 - extra humidity sensor 1
         if self.extra_hum1 and self.extra_hum1 in packet_wx:
             extra_hum1 = packet_wx[self.extra_hum1]
         else:
             extra_hum1 = None
-        data[26] = extra_hum1 if extra_hum1 is not None else 0.0
+        data[26] = extra_hum1 if extra_hum1 is not None else -100
         # 027 - extra humidity sensor 2
         if self.extra_hum2 and self.extra_hum2 in packet_wx:
             extra_hum2 = packet_wx[self.extra_hum2]
         else:
             extra_hum2 = None
-        data[27] = extra_hum2 if extra_hum2 is not None else 0.0
+        data[27] = extra_hum2 if extra_hum2 is not None else -100
         # 028 - extra humidity sensor 3
         if self.extra_hum3 and self.extra_hum3 in packet_wx:
             extra_hum3 = packet_wx[self.extra_hum3]
         else:
             extra_hum3 = None
-        data[28] = extra_hum3 if extra_hum3 is not None else 0.0
+        data[28] = extra_hum3 if extra_hum3 is not None else -100
         # 029 - hour
         data[29] = time.strftime('%H', time.localtime(packet_wx['dateTime']))
         # 030 - minute
@@ -1221,9 +1221,9 @@ class RealtimeClientrawThread(threading.Thread):
         # 036 - Month
         data[36] = time.strftime('%-m', time.localtime(packet_wx['dateTime']))
         # 037 - WMR968/200 battery 1 - will not implement
-        data[37] = 100
+        data[37] = 0.0
         # 038 - WMR968/200 battery 2 - will not implement
-        data[38] = 100
+        data[38] = 0.0
         # 039 - WMR968/200 battery 3 - will not implement
         data[39] = 100
         # 040 - WMR968/200 battery 4 - will not implement
@@ -1250,7 +1250,7 @@ class RealtimeClientrawThread(threading.Thread):
                                     temp_group)
         else:
             temp_th_vt = ValueTuple(None, temp_unit, temp_group)
-        temp_th = convert(temp_th_vt, 'degree_C')
+        temp_th = convert(temp_th_vt, 'degree_C').value
         data[46] = temp_th if temp_th is not None else 0.0
         # 047 - minimum day temperature (Celsius)
         if 'outTemp' in self.buffer:
@@ -1259,7 +1259,7 @@ class RealtimeClientrawThread(threading.Thread):
                                     temp_group)
         else:
             temp_tl_vt = ValueTuple(None, temp_unit, temp_group)
-        temp_tl = convert(temp_tl_vt, 'degree_C')
+        temp_tl = convert(temp_tl_vt, 'degree_C').value
         data[47] = temp_tl if temp_tl is not None else 0.0
         # FIXME. Need to implement field 48
         # 048 - icon type
@@ -1321,24 +1321,24 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             humidex_th_vt = ValueTuple(None, temp_unit, temp_group)
             humidex_tl_vt = ValueTuple(None, temp_unit, temp_group)
-        humidex_th = convert(humidex_th_vt, 'degree_C')
-        humidex_tl = convert(humidex_tl_vt, 'degree_C')
+        humidex_th = convert(humidex_th_vt, 'degree_C').value
+        humidex_tl = convert(humidex_tl_vt, 'degree_C').value
         data[75] = humidex_th if humidex_th is not None else 0.0
         data[76] = humidex_tl if humidex_tl is not None else 0.0
         # 077 - maximum day windchill (Celsius)
         # 078 - minimum day windchill (Celsius)
         if 'windchill' in self.buffer:
-            windchill_th = ValueTuple(self.buffer['windchill'].day_max,
-                                      temp_unit,
-                                      temp_group)
-            windchill_tl = ValueTuple(self.buffer['windchill'].day_min,
-                                      temp_unit,
-                                      temp_group)
+            windchill_th_vt = ValueTuple(self.buffer['windchill'].day_max,
+                                         temp_unit,
+                                         temp_group)
+            windchill_tl_vt = ValueTuple(self.buffer['windchill'].day_min,
+                                         temp_unit,
+                                         temp_group)
         else:
-            windchill_th = ValueTuple(None, temp_unit, temp_group)
-            windchill_tl = ValueTuple(None, temp_unit, temp_group)
-        windchill_th = convert(windchill_th_vt, 'degree_C')
-        windchill_tl = convert(windchill_tl_vt, 'degree_C')
+            windchill_th_vt = ValueTuple(None, temp_unit, temp_group)
+            windchill_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        windchill_th = convert(windchill_th_vt, 'degree_C').value
+        windchill_tl = convert(windchill_tl_vt, 'degree_C').value
         data[77] = windchill_th if windchill_th is not None else 0.0
         data[78] = windchill_tl if windchill_tl is not None else 0.0
         # 079 - davis vp UV
@@ -1372,8 +1372,8 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             heatindex_th_vt = ValueTuple(None, temp_unit, temp_group)
             heatindex_tl_vt = ValueTuple(None, temp_unit, temp_group)
-        heatindex_th = convert(heatindex_th_vt, 'degree_C')
-        heatindex_tl = convert(heatindex_tl_vt, 'degree_C')
+        heatindex_th = convert(heatindex_th_vt, 'degree_C').value
+        heatindex_tl = convert(heatindex_tl_vt, 'degree_C').value
         data[110] = heatindex_th if heatindex_th is not None else 0.0
         data[111] = heatindex_tl if heatindex_tl is not None else 0.0
         # 112 - heatindex (Celsius)
@@ -1462,8 +1462,8 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             intemp_th_vt = ValueTuple(None, temp_unit, temp_group)
             intemp_tl_vt = ValueTuple(None, temp_unit, temp_group)
-        intemp_th = convert(intemp_th_vt, 'degree_C')
-        intemp_tl = convert(intemp_tl_vt, 'degree_C')
+        intemp_th = convert(intemp_th_vt, 'degree_C').value
+        intemp_tl = convert(intemp_tl_vt, 'degree_C').value
         data[128] = intemp_th if intemp_th is not None else 0.0
         data[129] = intemp_tl if intemp_tl is not None else 0.0
         # 130 - appTemp (Celsius)
@@ -1488,8 +1488,8 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             barometer_th_vt = ValueTuple(None, press_unit, press_group)
             barometer_tl_vt = ValueTuple(None, press_unit, press_group)
-        barometer_th = convert(barometer_th_vt, 'hPa')
-        barometer_tl = convert(barometer_tl_vt, 'hPa')
+        barometer_th = convert(barometer_th_vt, 'hPa').value
+        barometer_tl = convert(barometer_tl_vt, 'hPa').value
         data[131] = barometer_th if barometer_th is not None else 0.0
         data[132] = barometer_tl if barometer_tl is not None else 0.0
         # 133 - maximum windGust last hour (knot)
@@ -1512,11 +1512,13 @@ class RealtimeClientrawThread(threading.Thread):
             buffer_ot = self.buffer['windSpeed'].history_max(packet_wx['dateTime'])
         else:
             buffer_ot = ObsTuple(None, None)
-        if hour_gust_vt.value is None:
+        buffer_ot_knot = convert(ValueTuple(buffer_ot.value, speed_unit, speed_group),
+                                 'knot').value
+        if hour_gust is None:
             windgust60_ts = buffer_ot.ts
         elif buffer_ot.value is None:
             windgust60_ts = hour_gust_ts
-        elif buffer_ot.value > windgust60_ms:
+        elif buffer_ot_knot > windgust60:
             windgust60_ts = buffer_ot.ts
         else:
             windgust60_ts = hour_gust_ts
@@ -1543,8 +1545,8 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             apptemp_th_vt = ValueTuple(None, temp_unit, temp_group)
             apptemp_tl_vt = ValueTuple(None, temp_unit, temp_group)
-        apptemp_th = convert(apptemp_th_vt, 'degree_C')
-        apptemp_tl = convert(apptemp_tl_vt, 'degree_C')
+        apptemp_th = convert(apptemp_th_vt, 'degree_C').value
+        apptemp_tl = convert(apptemp_tl_vt, 'degree_C').value
         data[136] = apptemp_th if apptemp_th is not None else 0.0
         data[137] = apptemp_tl if apptemp_tl is not None else 0.0
         # 138 - maximum day dewpoint (Celsius)
@@ -1559,8 +1561,8 @@ class RealtimeClientrawThread(threading.Thread):
         else:
             dewpoint_th_vt = ValueTuple(None, temp_unit, temp_group)
             dewpoint_tl_vt = ValueTuple(None, temp_unit, temp_group)
-        dewpoint_th = convert(dewpoint_th_vt, 'degree_C')
-        dewpoint_tl = convert(dewpoint_tl_vt, 'degree_C')
+        dewpoint_th = convert(dewpoint_th_vt, 'degree_C').value
+        dewpoint_tl = convert(dewpoint_tl_vt, 'degree_C').value
         data[138] = dewpoint_th if dewpoint_th is not None else 0.0
         data[139] = dewpoint_tl if dewpoint_tl is not None else 0.0
         # 140 - maximum windGust in last minute (knot)
@@ -1655,7 +1657,7 @@ class RealtimeClientrawThread(threading.Thread):
         nineam_rain_vt = ValueTuple(self.buffer['rain'].nineam_sum,
                                     rain_unit,
                                     rain_group)
-        data[162] = convert(nineam_rain_vt, 'mm')
+        data[162] = convert(nineam_rain_vt, 'mm').value
         # 163 - high day outHumidity
         # 164 - low day outHumidity
         if 'outHumidity' in self.buffer:
@@ -1673,7 +1675,7 @@ class RealtimeClientrawThread(threading.Thread):
             day_rain_vt = ValueTuple(self.buffer['rain'].day_sum,
                                      rain_unit,
                                      rain_group)
-            day_rain = convert(day_rain_vt, 'mm')
+            day_rain = convert(day_rain_vt, 'mm').value
         else:
             day_rain = None
         data[165] = day_rain if day_rain is not None else 0.0
@@ -1703,7 +1705,7 @@ class RealtimeClientrawThread(threading.Thread):
         windrun_vt = ValueTuple(self.buffer.windrun,
                                 dist_unit,
                                 dist_group)
-        windrun = convert(windrun_vt, 'km')
+        windrun = convert(windrun_vt, 'km').value
         data[173] = windrun if windrun is not None else 0.0
         # 174 - record end (WD Version)
         data[174] = '!!EOR!!'
