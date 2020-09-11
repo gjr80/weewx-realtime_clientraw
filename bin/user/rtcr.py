@@ -994,6 +994,10 @@ class RealtimeClientrawThread(threading.Thread):
         packet_wx = weewx.units.to_std_system(packet, weewx.METRICWX)
         speed_unit, speed_group = getStandardUnitType(self.buffer.unit_system,
                                                       'windSpeed')
+        temp_unit, temp_group = getStandardUnitType(self.buffer.unit_system,
+                                                    'outTemp')
+        rain_unit, rain_group = getStandardUnitType(self.buffer.unit_system,
+                                                    'outTemp')
         data = dict()
         # preamble
         data[0] = '12345'
@@ -1035,11 +1039,14 @@ class RealtimeClientrawThread(threading.Thread):
         data[6] = packet_wx['barometer'] if packet_wx['barometer'] is not None else 0.0
         # 007 - daily rain (mm)
         if 'dayRain' in packet_wx:
-            day_rain = packet_wx['dayRain']
+            day_rain_vt = ValueTuple(packet_wx['dayRain'], 'mm', 'group_rain')
         elif 'rain' in self.buffer:
-            day_rain = self.buffer['rain'].day_sum
+            day_rain_vt = ValueTuple(self.buffer['rain'].day_sum,
+                                     rain_unit,
+                                     rain_group)
         else:
-            day_rain = None
+            day_rain_vt = ValueTuple(None, 'mm', 'group_rain')
+        day_rain = convert(day_rain_vt, 'mm')
         data[7] = day_rain if day_rain is not None else 0.0
         # 008 - monthly rain
         month_rain_vt = getattr(self, 'month_rain_vt',
@@ -1229,15 +1236,21 @@ class RealtimeClientrawThread(threading.Thread):
         data[45] = humidex if humidex is not None else 0.0
         # 046 - maximum day temperature (Celsius)
         if 'outTemp' in self.buffer:
-            temp_th = self.buffer['outTemp'].day_max
+            temp_th_vt = ValueTuple(self.buffer['outTemp'].day_max,
+                                    temp_unit,
+                                    temp_group)
         else:
-            temp_th = None
+            temp_th_vt = ValueTuple(None, temp_unit, temp_group)
+        temp_th = convert(temp_th_vt, 'degree_C')
         data[46] = temp_th if temp_th is not None else 0.0
         # 047 - minimum day temperature (Celsius)
         if 'outTemp' in self.buffer:
-            temp_tl = self.buffer['outTemp'].day_min
+            temp_tl_vt = ValueTuple(self.buffer['outTemp'].day_min,
+                                    temp_unit,
+                                    temp_group)
         else:
-            temp_tl = None
+            temp_tl_vt = ValueTuple(None, temp_unit, temp_group)
+        temp_tl = convert(temp_tl_vt, 'degree_C')
         data[47] = temp_tl if temp_tl is not None else 0.0
         # FIXME. Need to implement field 48
         # 048 - icon type
