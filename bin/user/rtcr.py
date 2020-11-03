@@ -1494,8 +1494,11 @@ class RealtimeClientrawThread(threading.Thread):
         data[132] = barometer_tl if barometer_tl is not None else 0.0
         # 133 - maximum windGust last hour (knot)
         hour_gust_vt = getattr(self, 'hour_gust_vt',
-                               ValueTuple(0, 'knot', 'group_speed'))
-        hour_gust = convert(hour_gust_vt, 'knot').value
+                               ValueTuple(0.0, 'knot', 'group_speed'))
+        if hour_gust_vt.value is not None:
+            hour_gust = convert(hour_gust_vt, 'knot').value
+        else:
+            hour_gust = 0.0
         if hour_gust_vt.value and 'windSpeed' in self.buffer:
             windspeed_tm_loop_vt = ValueTuple(self.buffer['windSpeed'].day_max,
                                               speed_unit,
@@ -2049,7 +2052,7 @@ class VectorBuffer(object):
             _max = max(snapshot, key=itemgetter(1)[0])
             return ObsTuple(_max[0], _max[1])
         else:
-            return None
+            return ObsTuple(None, None)
 
     def history_avg(self, ts, age=MAX_AGE):
         """Return the average value in my history.
@@ -2208,7 +2211,7 @@ class ScalarBuffer(object):
             _max = max(snapshot, key=itemgetter(1))
             return ObsTuple(_max[0], _max[1])
         else:
-            return None
+            return ObsTuple(None, None)
 
     def history_avg(self, ts, age=MAX_AGE):
         """Return my average."""
