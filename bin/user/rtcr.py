@@ -349,7 +349,7 @@ class RealtimeClientraw(StdService):
                     'payload': event.packet}
         self.rtcr_queue.put(_package)
         if self.debug_loop:
-            logdbg("queued loop packet: %s" % _package['payload'])
+            loginf("queued loop packet: %s" % _package['payload'])
 
     def new_archive_record(self, event):
         """Puts archive records in the rtcr queue."""
@@ -360,7 +360,7 @@ class RealtimeClientraw(StdService):
                     'payload': event.record}
         self.rtcr_queue.put(_package)
         if self.debug_archive:
-            logdbg("queued archive record: %s" % _package['payload'])
+            loginf("queued archive record: %s" % _package['payload'])
         self.queue_stats(event.record['dateTime'])
 
     def queue_stats(self, ts):
@@ -373,7 +373,7 @@ class RealtimeClientraw(StdService):
                     'payload': _rain_data}
         self.rtcr_queue.put(_package)
         if self.debug_stats:
-            logdbg("queued historical rainfall data: %s" % _package['payload'])
+            loginf("queued historical rainfall data: %s" % _package['payload'])
         # get max gust in the last hour and put in the queue
         _hour_gust = self.get_hour_gust(ts)
         # package the data in a dict since this is not the only data we send
@@ -382,7 +382,7 @@ class RealtimeClientraw(StdService):
                     'payload': _hour_gust}
         self.rtcr_queue.put(_package)
         if self.debug_stats:
-            logdbg("queued last hour gust: %s" % _package['payload'])
+            loginf("queued last hour gust: %s" % _package['payload'])
         # get outTemp 1 hour ago and put in the queue
         _hour_temp = self.get_hour_ago_temp(ts)
         # package the data in a dict since this is not the only data we send
@@ -391,7 +391,7 @@ class RealtimeClientraw(StdService):
                     'payload': _hour_temp}
         self.rtcr_queue.put(_package)
         if self.debug_stats:
-            logdbg("queued outTemp hour ago: %s" % _package['payload'])
+            loginf("queued outTemp hour ago: %s" % _package['payload'])
 
     def end_archive_period(self, event):
         """Puts END_ARCHIVE_PERIOD event in the rtcr queue."""
@@ -402,7 +402,7 @@ class RealtimeClientraw(StdService):
                     'payload': weewx.END_ARCHIVE_PERIOD}
         self.rtcr_queue.put(_package)
         if self.debug_archive:
-            logdbg("queued weewx.END_ARCHIVE_PERIOD event")
+            loginf("queued weewx.END_ARCHIVE_PERIOD event")
 
     def shutDown(self):
         """Shut down any threads."""
