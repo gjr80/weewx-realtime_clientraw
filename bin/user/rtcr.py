@@ -17,16 +17,20 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see http://www.gnu.org/licenses/.
 
-Version: 0.3.0                                          Date: 9 June 2020
+Version: 0.3.0b1                                        Date: 28 February 2021
 
 Revision History
-    9 June 2020         v0.3.0
+    xx March 2021       v0.3.0
         - WeeWX 3.4+/4.x python 2.7/3.x compatible
+        - dropped support for python 2.5, python 2.6 may be supported but not
+          guaranteed
+        - removed post_request() method from class RealtimeClientrawThread as
+          we no longer have to worry about python 2.5 support
     9 March 2020        v0.2.3
         - fixed missing conversion to integer on some numeric config items
         - added try..except around the main thread code so that thread
           exceptions can be trapped and logged rather than the thread silently
-          dieing
+          dying
         - changed to python 2/3 compatible fixed except syntax
         - fixed incorrect instructions for setting additional_binding config
           item when there is no additional binding
@@ -172,8 +176,6 @@ import time
 from operator import itemgetter
 
 # Python 2/3 compatibility shims
-# TODO. Can remove this import ?
-# import six
 from six import iteritems
 from six.moves import http_client
 from six.moves import queue
@@ -243,7 +245,7 @@ except ImportError:
 
 
 # version number of this script
-RTCR_VERSION = '0.3.0a2'
+RTCR_VERSION = '0.3.0b1'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -737,7 +739,7 @@ class RealtimeClientrawThread(threading.Thread):
         """
 
         # since we are running in a thread wrap in a try..except so we can trap
-        # and log any errors rather than the thread silently dieing
+        # and log any errors rather than the thread silently dying
         try:
             # would normally do this in our objects __init__ but since we are are
             # running in a thread we need to wait until the thread is actually
@@ -929,7 +931,7 @@ class RealtimeClientrawThread(threading.Thread):
         req.add_header('Content-Type', 'text/plain')
         # POST the data but wrap in a try..except so we can trap any errors
         try:
-            response = self.post_request(req, data)
+            response = urllib.request.urlopen(req, data=data, timeout=self.timeout)
             if 200 <= response.code <= 299:
                 # No exception thrown and we got a good response code, but did
                 # we get self.response back in a return message? Check for
@@ -945,27 +947,6 @@ class RealtimeClientrawThread(threading.Thread):
                 http_client.BadStatusLine, http_client.IncompleteRead) as e:
             # an exception was thrown, log it and continue
             logdbg("Failed to post data: %s" % e)
-
-    def post_request(self, request, payload):
-        """Post a Request object.
-
-        Inputs:
-            request: urllib.request Request object
-            payload: the data to sent
-
-        Returns:
-            The urllib.request.urlopen() response
-        """
-
-        try:
-            # Python 2.5 and earlier do not have a "timeout" parameter.
-            # Including one could cause a TypeError exception. Be prepared
-            # to catch it.
-            _response = urllib.request.urlopen(request, data=payload, timeout=self.timeout)
-        except TypeError:
-            # Must be Python 2.5 or early. Use a simple, unadorned request
-            _response = urllib.request.urlopen(request, data=payload)
-        return _response
 
     def write_data(self, data):
         """Write the clientraw.txt file.
@@ -1242,6 +1223,8 @@ class RealtimeClientrawThread(threading.Thread):
         elif 'outTemp' in packet_wx and 'outHumidity' in packet_wx:
             humidex = weewx.wxformulas.humidexC(packet_wx['outTemp'],
                                                 packet_wx['outHumidity'])
+        else:
+            humidex = None
         data[45] = humidex if humidex is not None else 0.0
         # 046 - maximum day temperature (Celsius)
         if 'outTemp' in self.buffer:
@@ -2202,7 +2185,7 @@ class ScalarBuffer(object):
 
         Returns:
             An object of type ObsTuple where value is the max value found and
-            ts is the timestamp when it ocurred.
+            ts is the timestamp when it occurred.
         """
 
         born = ts - age
@@ -2233,7 +2216,7 @@ class RtcrBuffer(dict):
     """Class to buffer various loop packet obs.
 
     Archive based stats are an efficient means of obtaining stats for today.
-    However, their use ignores any max/min etc (eg todays max outTemp) that
+    However, their use ignores any max/min etc (eg today's max outTemp) that
     'occurs' after the most recent archive record but before the next archive
     record is written to archive. For this reason selected loop data is
     buffered to enable 'loop' stats to be calculated. Accurate daily stats can
