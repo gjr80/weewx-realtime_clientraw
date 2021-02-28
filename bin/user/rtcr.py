@@ -31,6 +31,7 @@ Revision History
         - fixed bug in nineam reset control code in process_packet()
         - removed unnecessary packet unit conversion call from
           class RtcrBuffer add_packet() method
+        - added support for various debug_xxx settings in [RealtimeClientraw]
     9 March 2020        v0.2.3
         - fixed missing conversion to integer on some numeric config items
         - added try..except around the main thread code so that thread
@@ -325,6 +326,12 @@ class RealtimeClientraw(StdService):
         # grace
         self.grace = to_int(rtcr_config_dict.get('grace', DEFAULT_GRACE))
 
+        # debug settings
+        self.debug_loop = to_bool(rtcr_config_dict.get('debug_loop', False))
+        self.debug_archive = to_bool(rtcr_config_dict.get('debug_archive',
+                                                          False))
+        self.debug_stats = to_bool(rtcr_config_dict.get('debug_stats', False))
+
         # seed our RealtimeClientrawThread object
         self.queue_stats(int(time.time()))
 
@@ -341,7 +348,7 @@ class RealtimeClientraw(StdService):
         _package = {'type': 'loop',
                     'payload': event.packet}
         self.rtcr_queue.put(_package)
-        if weewx.debug >= 2:
+        if self.debug_loop:
             logdbg("queued loop packet: %s" % _package['payload'])
 
     def new_archive_record(self, event):
@@ -352,7 +359,7 @@ class RealtimeClientraw(StdService):
         _package = {'type': 'archive',
                     'payload': event.record}
         self.rtcr_queue.put(_package)
-        if weewx.debug >= 2:
+        if self.debug_archive:
             logdbg("queued archive record: %s" % _package['payload'])
         self.queue_stats(event.record['dateTime'])
 
@@ -365,7 +372,7 @@ class RealtimeClientraw(StdService):
         _package = {'type': 'stats',
                     'payload': _rain_data}
         self.rtcr_queue.put(_package)
-        if weewx.debug >= 2:
+        if self.debug_stats:
             logdbg("queued historical rainfall data: %s" % _package['payload'])
         # get max gust in the last hour and put in the queue
         _hour_gust = self.get_hour_gust(ts)
@@ -374,7 +381,7 @@ class RealtimeClientraw(StdService):
         _package = {'type': 'stats',
                     'payload': _hour_gust}
         self.rtcr_queue.put(_package)
-        if weewx.debug >= 2:
+        if self.debug_stats:
             logdbg("queued last hour gust: %s" % _package['payload'])
         # get outTemp 1 hour ago and put in the queue
         _hour_temp = self.get_hour_ago_temp(ts)
@@ -383,7 +390,7 @@ class RealtimeClientraw(StdService):
         _package = {'type': 'stats',
                     'payload': _hour_temp}
         self.rtcr_queue.put(_package)
-        if weewx.debug >= 2:
+        if self.debug_stats:
             logdbg("queued outTemp hour ago: %s" % _package['payload'])
 
     def end_archive_period(self, event):
@@ -394,7 +401,7 @@ class RealtimeClientraw(StdService):
         _package = {'type': 'event',
                     'payload': weewx.END_ARCHIVE_PERIOD}
         self.rtcr_queue.put(_package)
-        if weewx.debug >= 2:
+        if self.debug_archive:
             logdbg("queued weewx.END_ARCHIVE_PERIOD event")
 
     def shutDown(self):
@@ -629,6 +636,16 @@ class RealtimeClientrawThread(threading.Thread):
         # grace
         self.grace = to_int(rtcr_config_dict.get('grace', DEFAULT_GRACE))
 
+        # debug settings
+        self.debug_loop = to_bool(rtcr_config_dict.get('debug_loop', False))
+        self.debug_archive = to_bool(rtcr_config_dict.get('debug_archive',
+                                                          False))
+        self.debug_stats = to_bool(rtcr_config_dict.get('debug_stats', False))
+        self.debug_cache = to_bool(rtcr_config_dict.get('debug_cache', False))
+        self.debug_queue = to_bool(rtcr_config_dict.get('debug_queue', False))
+        self.debug_gen = to_bool(rtcr_config_dict.get('debug_gen', False))
+        self.debug_post = to_bool(rtcr_config_dict.get('debug_post', False))
+
         # Are we updating windrun using archive data only or archive and loop
         # data?
         self.windrun_loop = to_bool(rtcr_config_dict.get('windrun_loop',
@@ -780,11 +797,11 @@ class RealtimeClientrawThread(threading.Thread):
                                              self.buffer.unit_system)
             # get a CachedPacket object as our loop packet cache and prime it with
             # values from the last good archive record if available
-            if weewx.debug >= 2:
-                logdbg("initialising loop packet cache ...")
+            if self.debug_loop or self.debug_cache:
+                loginf("initialising loop packet cache ...")
             self.packet_cache = CachedPacket(_rec)
-            if weewx.debug >= 2:
-                logdbg("loop packet cache initialised")
+            if self.debug_loop or self.debug_cache:
+                loginf("loop packet cache initialised")
 
             # now run a continuous loop, waiting for records to appear in the rtcr
             # queue then processing them.
@@ -796,21 +813,21 @@ class RealtimeClientrawThread(threading.Thread):
                         return
                     elif _package['type'] == 'archive':
                         self.new_archive_record(_package['payload'])
-                        if weewx.debug >= 2:
-                            logdbg("received archive record")
+                        if self.debug_archive or self.debug_queue:
+                            loginf("received archive record")
                         continue
                     elif _package['type'] == 'event':
                         if _package['payload'] == weewx.END_ARCHIVE_PERIOD:
-                            if weewx.debug >= 2:
-                                logdbg("received event - END_ARCHIVE_PERIOD")
+                            if self.debug_archive or self.debug_queue:
+                                loginf("received event - END_ARCHIVE_PERIOD")
                             self.end_archive_period()
                         continue
                     elif _package['type'] == 'stats':
-                        if weewx.debug >= 2:
-                            logdbg("received stats package payload=%s" % (_package['payload'], ))
+                        if self.debug_stats or self.debug_queue:
+                            loginf("received stats package payload=%s" % (_package['payload'], ))
                         self.process_stats(_package['payload'])
-                        if weewx.debug >= 2:
-                            logdbg("processed stats package")
+                        if self.debug_stats or self.debug_queue:
+                            loginf("processed stats package")
                         continue
                     # if packets have backed up in the rtcr queue, trim it until
                     # it's no bigger than the max allowed backlog
@@ -818,8 +835,8 @@ class RealtimeClientrawThread(threading.Thread):
                         break
 
                 # if we made it here we have a loop packet to process
-                if weewx.debug >= 2:
-                    logdbg("received packet: %s" % _package['payload'])
+                if self.debug_loop or self.debug_queue:
+                    loginf("received packet: %s" % _package['payload'])
                 self.process_packet(_package['payload'])
         except Exception as e:
             # Some unknown exception occurred. This is probably a serious
@@ -868,8 +885,8 @@ class RealtimeClientrawThread(threading.Thread):
                 # get a cached packet
                 cached_packet = self.packet_cache.get_packet(conv_packet['dateTime'],
                                                              self.max_cache_age)
-                if weewx.debug >= 2:
-                    logdbg("cached loop packet: %s" % (cached_packet,))
+                if self.debug_loop or self.debug_cache:
+                    loginf("cached loop packet: %s" % (cached_packet,))
                 # get a data dict from which to construct our file
                 data = self.calculate(cached_packet)
                 # convert our data dict to a clientraw string
@@ -883,13 +900,15 @@ class RealtimeClientrawThread(threading.Thread):
                     # post the data
                     self.post_data(cr_string)
                 # log the generation
-                logdbg("packet (%s) clientraw.txt generated in %.5f seconds" % (cached_packet['dateTime'],
-                                                                                (self.last_write-t1)))
+                if weewx.debug > 0 or self.debug_gen:
+                    loginf("packet (%s) clientraw.txt generated in %.5f seconds" % (cached_packet['dateTime'],
+                                                                                    (self.last_write-t1)))
             except Exception as e:
                 log_traceback_error('rtcrthread: **** ')
         else:
             # we skipped this packet so log it
-            logdbg("packet (%s) skipped" % conv_packet['dateTime'])
+            if weewx.debug > 0 or self.debug_gen:
+                loginf("packet (%s) skipped" % conv_packet['dateTime'])
 
     def process_stats(self, package):
         """Process a stats package.
@@ -949,14 +968,17 @@ class RealtimeClientrawThread(threading.Thread):
                 # not there then log it and return.
                 if self.response is not None and self.response not in response:
                     # didn't get 'success' so log it and continue
-                    logdbg("Failed to post data: Unexpected response")
+                    if weewx.debug > 0 or self.debug_post:
+                        loginf("Failed to post data: Unexpected response")
                 return
             # we received a bad response code, log it and continue
-            logdbg("Failed to post data: Code %s" % response.code())
+            if weewx.debug > 0 or self.debug_post:
+                loginf("Failed to post data: Code %s" % response.code())
         except (urllib.error.URLError, socket.error,
                 http_client.BadStatusLine, http_client.IncompleteRead) as e:
             # an exception was thrown, log it and continue
-            logdbg("Failed to post data: %s" % e)
+            if weewx.debug > 0 or self.debug_post:
+                loginf("Failed to post data: %s" % e)
 
     def write_data(self, data):
         """Write the clientraw.txt file.
@@ -975,7 +997,7 @@ class RealtimeClientrawThread(threading.Thread):
         """Calculate the raw clientraw numeric fields.
 
         Input:
-            packet: loop data packet
+            packet: a cached loop data packet
 
         Returns:
             Dictionary containing the raw numeric clientraw.txt elements.
