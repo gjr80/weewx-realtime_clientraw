@@ -26,6 +26,11 @@ Revision History
           guaranteed
         - removed post_request() method from class RealtimeClientrawThread as
           we no longer have to worry about python 2.5 support
+        - removed unnecessary setting of day accumulator unit system from the
+          class RealtimeClientrawThread run() method
+        - fixed bug in nineam reset control code in process_packet()
+        - removed unnecessary packet unit conversion call from
+          class RtcrBuffer add_packet() method
     9 March 2020        v0.2.3
         - fixed missing conversion to integer on some numeric config items
         - added try..except around the main thread code so that thread
@@ -636,7 +641,7 @@ class RealtimeClientrawThread(threading.Thread):
         # check for data existence before using it.
         self.additional_binding = rtcr_config_dict.get('additional_binding', None)
 
-        # initialise day_oy_year property so when know when it's a new day
+        # initialise a day of the week property so we know when it's a new day
         self.dow = None
 
         # initialise some properties used to hold archive period wind data
@@ -752,21 +757,25 @@ class RealtimeClientrawThread(threading.Thread):
                                                                                  self.additional_binding)
             # initialise our day stats
             self.day_stats = self.db_manager._get_day_summary(time.time())
-            # set the unit system for our day stats
-            self.day_stats.unit_system = self.db_manager.std_unit_system
+            # TODO. Verify the following lines can be removed, _get_day_summary() sets unit_system
+            # # set the unit system for our day stats
+            # self.day_stats.unit_system = self.db_manager.std_unit_system
             if self.additional_manager:  # initialise our day stats from our appTemp source
                 self.additional_day_stats = self.additional_manager._get_day_summary(time.time())
-                # set the unit system for our day stats
-                self.additional_day_stats.unit_system = self.additional_manager.std_unit_system
+                # TODO. Verify the following lines can be removed, _get_day_summary() sets unit_system
+                # # set the unit system for our day stats
+                # self.additional_day_stats.unit_system = self.additional_manager.std_unit_system
             # create a RtcrBuffer object to hold our loop 'stats'
             self.buffer = RtcrBuffer(day_stats=self.day_stats,
                                      additional_day_stats=self.additional_day_stats)
             # setup our loop cache and set some starting wind values
+            # get the last good record
             _ts = self.db_manager.lastGoodStamp()
             if _ts is not None:
                 _rec = self.db_manager.getRecord(_ts)
             else:
                 _rec = {'usUnits': None}
+            # convert it to our buffer unit system
             _rec = weewx.units.to_std_system(_rec,
                                              self.buffer.unit_system)
             # get a CachedPacket object as our loop packet cache and prime it with
@@ -826,7 +835,7 @@ class RealtimeClientrawThread(threading.Thread):
         # get time for debug timing
         t1 = time.time()
 
-        # make sure the packet is in our unit system
+        # make sure the packet is in our buffer unit system
         conv_packet = weewx.units.to_std_system(packet,
                                                 self.buffer.unit_system)
 
@@ -843,8 +852,8 @@ class RealtimeClientrawThread(threading.Thread):
 
         # if this is the first packet after 9am we need to reset any 9am sums
         # first get the current hour as an int
-        _hour = int(time.strftime('%w', time.localtime(conv_packet['dateTime'])))
-        # if its a new day and hour>=9 we need to reset any 9am sums
+        _hour = int(time.strftime('%H', time.localtime(conv_packet['dateTime'])))
+        # if its a new day and hour >= 9 we need to reset any 9am sums
         if self.new_day and _hour >= 9:
             self.new_day = False
             self.buffer.nineam_reset()
@@ -900,6 +909,7 @@ class RealtimeClientrawThread(threading.Thread):
         daily summaries.
         """
 
+        # TODO. Do we really need these day stats?
         # refresh our day (archive record based) stats
         self.day_stats = self.db_manager._get_day_summary(record['dateTime'])
         if self.additional_manager:
@@ -973,6 +983,7 @@ class RealtimeClientrawThread(threading.Thread):
 
         # convert out packet to METRICWX
         packet_wx = weewx.units.to_std_system(packet, weewx.METRICWX)
+        # obtain the unit and unit groups for the buffer obs we will use
         speed_unit, speed_group = getStandardUnitType(self.buffer.unit_system,
                                                       'windSpeed')
         temp_unit, temp_group = getStandardUnitType(self.buffer.unit_system,
@@ -985,6 +996,7 @@ class RealtimeClientrawThread(threading.Thread):
                                                       'pressure')
         dist_unit, dist_group = getStandardUnitType(self.buffer.unit_system,
                                                     'windrun')
+        # get an empty dict for our results
         data = dict()
         # preamble
         data[0] = '12345'
@@ -2303,8 +2315,10 @@ class RtcrBuffer(dict):
     def add_packet(self, packet):
         """Add a packet to the buffer."""
 
-        # make sure the packet is in the correct unit system
-        packet = weewx.units.to_std_system(packet, self.unit_system)
+        # the packet is already in our unit system so as long as we have a
+        # timestamp add the fields of interest
+        # TODO. Delete the following line before release
+#        packet = weewx.units.to_std_system(packet, self.unit_system)
         if packet['dateTime'] is not None:
             for obs in [f for f in packet if f in MANIFEST]:
                 add_func = add_functions.get(obs, RtcrBuffer.add_value)
