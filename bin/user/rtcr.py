@@ -275,14 +275,14 @@ class RealtimeClientraw(StdService):
 
     Creates and controls a threaded object of class RealtimeClientrawThread
     that generates clientraw.txt. Data is fed to the RealtimeClientrawThread
-    object via an instance of rtcr_queue.Queue.
+    object via an instance of queue.Queue.
     """
 
     def __init__(self, engine, config_dict):
         # initialize my superclass
         super(RealtimeClientraw, self).__init__(engine, config_dict)
 
-        # our rtcr_queue
+        # obtain a Queue object so we can communicate with our thread
         self.rtcr_queue = queue.Queue()
 
         # get a db manager object
@@ -327,10 +327,10 @@ class RealtimeClientraw(StdService):
         self.bind(weewx.END_ARCHIVE_PERIOD, self.end_archive_period)
 
     def new_loop_packet(self, event):
-        """Puts new loop packets in the rtcr rtcr_queue."""
+        """Puts new loop packets in the queue."""
 
         # package the loop packet in a dict since this is not the only data
-        # we send via the rtcr_queue
+        # we send via the queue
         _package = {'type': 'loop',
                     'payload': event.packet}
         self.rtcr_queue.put(_package)
@@ -338,10 +338,10 @@ class RealtimeClientraw(StdService):
             logdbg("queued loop packet: %s" % _package['payload'])
 
     def new_archive_record(self, event):
-        """Puts archive records in the rtcr rtcr_queue."""
+        """Puts archive records in the rtcr queue."""
 
         # package the archive record in a dict since this is not the only data
-        # we send via the rtcr_queue
+        # we send via the queue
         _package = {'type': 'archive',
                     'payload': event.record}
         self.rtcr_queue.put(_package)
@@ -351,28 +351,28 @@ class RealtimeClientraw(StdService):
 
     def queue_stats(self, ts):
 
-        # get yesterdays rainfall and put in the rtcr_queue
+        # get yesterdays rainfall and put in the queue
         _rain_data = self.get_historical_rain(ts)
         # package the data in a dict since this is not the only data we send
-        # via the rtcr_queue
+        # via the queue
         _package = {'type': 'stats',
                     'payload': _rain_data}
         self.rtcr_queue.put(_package)
         if weewx.debug >= 2:
             logdbg("queued historical rainfall data: %s" % _package['payload'])
-        # get max gust in the last hour and put in the rtcr_queue
+        # get max gust in the last hour and put in the queue
         _hour_gust = self.get_hour_gust(ts)
         # package the data in a dict since this is not the only data we send
-        # via the rtcr_queue
+        # via the queue
         _package = {'type': 'stats',
                     'payload': _hour_gust}
         self.rtcr_queue.put(_package)
         if weewx.debug >= 2:
             logdbg("queued last hour gust: %s" % _package['payload'])
-        # get outTemp 1 hour ago and put in the rtcr_queue
+        # get outTemp 1 hour ago and put in the queue
         _hour_temp = self.get_hour_ago_temp(ts)
         # package the data in a dict since this is not the only data we send
-        # via the rtcr_queue
+        # via the queue
         _package = {'type': 'stats',
                     'payload': _hour_temp}
         self.rtcr_queue.put(_package)
@@ -380,10 +380,10 @@ class RealtimeClientraw(StdService):
             logdbg("queued outTemp hour ago: %s" % _package['payload'])
 
     def end_archive_period(self, event):
-        """Puts END_ARCHIVE_PERIOD event in the rtcr rtcr_queue."""
+        """Puts END_ARCHIVE_PERIOD event in the rtcr queue."""
 
         # package the event in a dict since this is not the only data we send
-        # via the rtcr_queue
+        # via the queue
         _package = {'type': 'event',
                     'payload': weewx.END_ARCHIVE_PERIOD}
         self.rtcr_queue.put(_package)
@@ -395,7 +395,7 @@ class RealtimeClientraw(StdService):
 
         if hasattr(self, 'rtcr_queue') and hasattr(self, 'rtcr_thread'):
             if self.rtcr_queue and self.rtcr_thread.is_alive():
-                # Put a None in the rtcr_queue to signal the thread to shutdown
+                # Put a None in the queue to signal the thread to shutdown
                 self.rtcr_queue.put(None)
                 # Wait up to 20 seconds for the thread to exit:
                 self.rtcr_thread.join(20.0)
@@ -729,11 +729,11 @@ class RealtimeClientrawThread(threading.Thread):
         loginf(_msg)
 
     def run(self):
-        """Collect packets from the rtcr rtcr_queue and manage their processing.
+        """Collect packets from the rtcr queue and manage their processing.
 
         Now that we are in a thread get a manager for our db so we can
         initialise our forecast and day stats. Once this is done we wait for
-        something in the rtcr rtcr_queue.
+        something in the rtcr queue.
         """
 
         # since we are running in a thread wrap in a try..except so we can trap
@@ -776,7 +776,7 @@ class RealtimeClientrawThread(threading.Thread):
                 logdbg("loop packet cache initialised")
 
             # now run a continuous loop, waiting for records to appear in the rtcr
-            # rtcr_queue then processing them.
+            # queue then processing them.
             while True:
                 while True:
                     _package = self.rtcr_queue.get()
@@ -801,7 +801,7 @@ class RealtimeClientrawThread(threading.Thread):
                         if weewx.debug >= 2:
                             logdbg("processed stats package")
                         continue
-                    # if packets have backed up in the rtcr rtcr_queue, trim it until
+                    # if packets have backed up in the rtcr queue, trim it until
                     # it's no bigger than the max allowed backlog
                     if self.rtcr_queue.qsize() <= 5:
                         break
