@@ -40,11 +40,16 @@ Revision History
         - initial implementation
 """
 
-import weewx
-
+# python imports
 import configobj
 from distutils.version import StrictVersion
 from setup import ExtensionInstaller
+
+# import StringIO, use six.moves due to python2/python3 differences
+from six.moves import StringIO
+
+# WeeWX imports
+import weewx
 
 REQUIRED_VERSION = "4.5.0"
 RTCR_VERSION = "0.3.6"
