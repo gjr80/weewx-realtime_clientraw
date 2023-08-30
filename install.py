@@ -42,6 +42,7 @@ Revision History
 
 import weewx
 
+import configobj
 from distutils.version import StrictVersion
 from setup import ExtensionInstaller
 
