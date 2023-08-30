@@ -4,7 +4,7 @@
 
 The *Realtime clientraw extension* is a WeeWX extension that generates a loop data based *clientraw.txt* file for near realtime updating of the [Saratoga Weather Website templates](http://saratoga-weather.org/wxtemplates/index.php "Free Weather Website Templates") dashboards. *clientraw.txt* may also be used by some other applications for near realtime display of weather related data (eg updating Weather Display Live).
 
-Unlike WeeWX template based generation of *clientraw.txt* the *Realtime clientraw extension* uses a custom WeeWX service to generate a near realtime *clientraw.txt* based on loop packet data.  
+Unlike WeeWX template based generation of *clientraw.txt*, the *Realtime clientraw extension* uses a custom WeeWX service to generate a near realtime *clientraw.txt* based on loop packet data.  
 
 **Note:** The Saratoga dashboards include the standard dashboard included in the Saratoga Weather Website templates and the so-called Alternate dashboard. Use of the term *Saratoga dashboards* in this repository is taken to mean both the standard dashboard included in the Saratoga Weather Website templates and the so-called Alternate dashboard.  
 
@@ -20,13 +20,13 @@ The *Realtime clientraw extension* requires WeeWX v4.5.0 or greater.
 
 ## Installation
 
-The preferred method of installing the *Realtime clientraw extension* is using the *WeeWX* [*wee_extension* utility](http://weewx.com/docs/utilities.htm#wee_extension_utility). The *Realtime clientraw extension* can also be installed manually.
+The preferred method of installing the *Realtime clientraw extension* is using the WeeWX [*wee_extension* utility](http://weewx.com/docs/utilities.htm#wee_extension_utility). The *Realtime clientraw extension* can also be installed manually.
 
-**Note:**   Symbolic names are used below to refer to some file location on the WeeWX system. Symbolic names allow a common name to be used to refer to a directory that may be different from system to system. The following symbolic names are used below:
+**Note:** Symbolic names are used below to refer to some file location on the WeeWX system. Symbolic names allow a common name to be used to refer to a directory that may be different from system to system. The following symbolic names are used below:
 
-  - *HTML_ROOT*. The path to the directory where WeeWX generated reports and images are located. This directory varies depending on WeeWX installation method and system or web server configuration.
+- *HTML_ROOT*. The path to the directory where WeeWX generated reports and images are located. This directory varies depending on WeeWX installation method and system or web server configuration.
     
--   *BIN_ROOT*. The path to the directory where WeeWX executables are located. This directory varies depending on WeeWX installation method.
+- *BIN_ROOT*. The path to the directory where WeeWX executables are located. This directory varies depending on WeeWX installation method.
 
 Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_find_things) in the *WeeWX User's Guide* for further information.
 
@@ -53,7 +53,7 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
 1.  Install the *Realtime clientraw extension* downloaded at step 1 using the WeeWX *wee_extension* utility:
 
-        wee_extension --install=$DOWNLOAD_ROOT/rtcr-0.3.6.tar.gz
+        wee_extension --install=/var/tmp/rtcr-0.3.6.tar.gz
 
     **Note:** Depending on your system/installation the above command may need to be prefixed with *sudo*.
 
@@ -85,7 +85,7 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
         sudo systemctl start weewx
 
-1.  This will result in the *clientraw.txt* file being generated on receipt of each loop packet. A default installation will result in the generated *clientraw.txt* file being placed in the *$HTML_ROOT* directory.
+1.  This will result in the *clientraw.txt* file being generated on receipt of each loop packet. A default installation will result in the generated *clientraw.txt* file being placed in the *HTML_ROOT* directory.
 
 1.  The *Realtime clientraw extension* installation can be further customized (eg file locations, frequency of generation etc) by referring to the *Realtime clientraw extension* wiki (to be written).
 
@@ -116,20 +116,20 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
         [Engine]
             [[Services]]
-        
+                ....
                 report_services = weewx.engine.StdPrint, weewx.engine.StdReport, user.rtgd.RealtimeClientraw
 
 1.  Start WeeWX:
 
-        $ sudo /etc/init.d/weewx start
+        sudo /etc/init.d/weewx start
 
 	or
 
-        $ sudo service weewx start
+        sudo service weewx start
 
     or
 
-        $ sudo systemctl start weewx
+        sudo systemctl start weewx
 
 1.  This will result in the *clientraw.txt* file being generated on receipt of each loop packet. A default installation will result in the generated *clientraw.txt* file being placed in the *$HTML_ROOT* directory.
 
