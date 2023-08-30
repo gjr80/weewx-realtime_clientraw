@@ -1,8 +1,40 @@
+v0.3.6
+*   fix incorrect default source fields for soil moisture, soil temperature and
+    leaf wetness
+v0.3.5
+*   improved support for extraTemp and extraHumid in a default install
+v0.3.4
+*   version number change only
+v0.3.3
+*   introduced support for hierarchical log_success and log_failure config
+    options to control logging of HTTP POST results
+*   user can now specify wind direction output when wind direction is null/None
+v0.3.2
+*   debug log output now controlled by [[RealtimeClientraw]] debug options
+    rather than the WeeWX global debug option
+*   fixed bug when obtaining average values from scalar buffers
+v0.3.0
+*   WeeWX 3.4+/4.x python 2.7/3.x compatible
+*   dropped support for python 2.5, python 2.6 may be supported but not
+    guaranteed
+*   removed post_request() method from class RealtimeClientrawThread as we no
+    longer have to worry about python 2.5 support
+*   removed unnecessary setting of day accumulator unit system from the class
+    RealtimeClientrawThread run() method
+*   fixed bug in nineam reset control code in process_packet()
+*   removed unnecessary packet unit conversion call from class RtcrBuffer
+    add_packet() method
+*   added support for various debug_xxx settings in [RealtimeClientraw]
+*   default location for generated clientraw.txt is now HTML_ROOT
+*   windrun is now derived from loop/archive field windrun only (was previously
+    calculated from windSpeed)
+*   added config option disable_local_save to disable saving of clientraw.txt
+    locally on the WeeWX machine
 v0.2.3
 *   fixed missing conversion to integer on some numeric config items
 *   added try..except around the main thread code so that thread exceptions can
-    be trapped and logged rather than the thread silently dieing
-*   changed to python 2/3 compatible fixed except syntax
+    be trapped and logged rather than the thread silently dying
+*   changed to python 2/3 compatible try..except syntax
 *   fixed incorrect instructions for setting additional_binding config item when
     there is no additional binding
 v0.2.2
