@@ -17,9 +17,12 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 You should have received a copy of the GNU General Public License along with
 this program.  If not, see https://www.gnu.org/licenses/.
 
-Version: 0.3.6                                          Date: 24 March 2023
+Version: 0.3.7                                          Date: 31 August 2023
 
 Revision History
+    31 August 2023      v0.3.7
+        - fix bug where a non-existent destination directory would prevent
+          local saving of clientraw.txt
     24 March 2023       v0.3.6
         - fix incorrect default source fields for soil moisture, soil
           temperature and leaf wetness
@@ -304,7 +307,7 @@ except ImportError:
 
 
 # version number of this script
-RTCR_VERSION = '0.3.6'
+RTCR_VERSION = '0.3.7'
 
 # the obs that we will buffer
 MANIFEST = ['outTemp', 'barometer', 'outHumidity', 'rain', 'rainRate',
@@ -873,6 +876,15 @@ class RealtimeClientrawThread(threading.Thread):
         # has local the saving of clientraw.txt been disabled
         self.disable_local_save = to_bool(rtcr_config_dict.get('disable_local_save',
                                                                False))
+        # create the directory that is to receive the generate file, but only
+        # if we are saving the file locally
+        if not self.disable_local_save:
+            # create the directory, if it already exists an exception will be
+            # thrown, so be prepared to catch it
+            try:
+                os.makedirs(rtcr_path)
+            except OSError:
+                pass
         # get the remote server URL if it exists, if it doesn't set it to None
         self.remote_server_url = rtcr_config_dict.get('remote_server_url', None)
         # timeout to be used for remote URL posts
