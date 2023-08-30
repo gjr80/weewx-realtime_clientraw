@@ -35,7 +35,7 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
 1.  Download the latest *Realtime clientraw extension* from the *Realtime clientraw extension* [releases page](https://github.com/gjr80/weewx-realtime_clientraw/releases) into a directory accessible from the WeeWX machine:
      
-        wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.6/rtcr-0.3.6.tar.gz
+        wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.7/rtcr-0.3.7.tar.gz
 
     in this case the extension package will be downloaded to directory */var/tmp*.
 
@@ -53,7 +53,7 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
 1.  Install the *Realtime clientraw extension* downloaded at step 1 using the WeeWX *wee_extension* utility:
 
-        wee_extension --install=/var/tmp/rtcr-0.3.6.tar.gz
+        wee_extension --install=/var/tmp/rtcr-0.3.7.tar.gz
 
     **Note:** Depending on your system/installation the above command may need to be prefixed with *sudo*.
 
@@ -63,11 +63,11 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
     This will result in output similar to the following:
 
-        Request to install '/var/tmp/rtcr-0.3.6.tar.gz'
-        Extracting from tar archive /var/tmp/rtcr-0.3.6.tar.gz
+        Request to install '/var/tmp/rtcr-0.3.7.tar.gz'
+        Extracting from tar archive /var/tmp/rtcr-0.3.7.tar.gz
         Saving installer file to /home/weewx/bin/user/installer/Rtcr
         Saved configuration dictionary. Backup copy at /home/weewx/weewx.conf.20230515124410
-        Finished installing extension '/var/tmp/rtcr-0.3.6.tar.gz'
+        Finished installing extension '/var/tmp/rtcr-0.3.7.tar.gz'
 
     **Note:** If upgrading an existing *Realtime clientraw extension* installation any previous *Realtime clientraw extension* configuration information in *weewx.conf* will have been retained and upgraded as required. *wee_extension* will save a timestamped backup copy of the pre-upgrade *weewx.conf* as detailed in the *wee_extension* output, eg:
     
@@ -94,13 +94,13 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
 1.  Download the latest *Realtime clientraw extension* from the *Realtime clientraw extension* [releases page](https://github.com/gjr80/weewx-realtime_clientraw/releases) into a directory accessible from the WeeWX machine:
      
-        wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.6/rtcr-0.3.6.tar.gz
+        wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.7/rtcr-0.3.7.tar.gz
 
     in this case the extension package will be downloaded to directory */var/tmp*.
 
 1.  Unpack the extension as follows:
 
-        tar xvfz /var/tmp/rtcr-0.3.6.tar.gz
+        tar xvfz /var/tmp/rtcr-0.3.7.tar.gz
 
 1.  Copy files from within the resulting *rtcr* directory as follows:
 
@@ -131,7 +131,7 @@ Refer to [where to find things](http://weewx.com/docs/usersguide.htm#Where_to_fi
 
         sudo systemctl start weewx
 
-1.  This will result in the *clientraw.txt* file being generated on receipt of each loop packet. A default installation will result in the generated *clientraw.txt* file being placed in the *$HTML_ROOT* directory.
+1.  This will result in the *clientraw.txt* file being generated on receipt of each loop packet. A default installation will result in the generated *clientraw.txt* file being placed in the *HTML_ROOT* directory.
 
 1.  The *Realtime clientraw extension* installation can be further customized (eg file locations, frequency of generation etc) by referring to the *Realtime clientraw extension* wiki (to be written).
 

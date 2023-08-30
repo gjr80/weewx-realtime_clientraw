@@ -73,7 +73,7 @@ Installation using the wee_extension utility
 clientraw extension releases page (https://github.com/gjr80/weewx-realtime_clientraw/releases)
 into a directory accessible from the WeeWX machine:
      
-    wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.6/rtcr-0.3.6.tar.gz
+    wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.7/rtcr-0.3.7.tar.gz
 
     in this case the extension package will be downloaded to directory /var/tmp.
 
@@ -92,7 +92,7 @@ into a directory accessible from the WeeWX machine:
 3.  Install the Realtime clientraw extension downloaded at step 1 using the
 WeeWX wee_extension utility:
 
-    wee_extension --install=/var/tmp/rtcr-0.3.6.tar.gz
+    wee_extension --install=/var/tmp/rtcr-0.3.7.tar.gz
 
     Note: Depending on your system/installation the above command may need to
           be prefixed with 'sudo'.
@@ -104,11 +104,11 @@ WeeWX wee_extension utility:
 
     This will result in output similar to the following:
 
-        Request to install '/var/tmp/rtcr-0.3.6.tar.gz'
-        Extracting from tar archive /var/tmp/rtcr-0.3.6.tar.gz
+        Request to install '/var/tmp/rtcr-0.3.7.tar.gz'
+        Extracting from tar archive /var/tmp/rtcr-0.3.7.tar.gz
         Saving installer file to /home/weewx/bin/user/installer/Rtcr
         Saved configuration dictionary. Backup copy at /home/weewx/weewx.conf.20230515124410
-        Finished installing extension '/var/tmp/rtcr-0.3.6.tar.gz'
+        Finished installing extension '/var/tmp/rtcr-0.3.7.tar.gz'
 
     Note: If upgrading an existing Realtime clientraw extension installation
           any previous Realtime clientraw extension configuration information
@@ -145,13 +145,13 @@ Manual installation
 clientraw extension releases page (https://github.com/gjr80/weewx-realtime_clientraw/releases)
 into a directory accessible from the WeeWX machine:
 
-    wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.6/rtcr-0.3.6.tar.gz
+    wget -P /var/tmp https://github.com/gjr80/weewx-realtime_clientraw/releases/download/v0.3.7/rtcr-0.3.7.tar.gz
 
     in this case the extension package will be downloaded to directory /var/tmp.
 
 2.  Unpack the extension as follows:
 
-    tar xvfz /var/tmp/rtcr-0.3.6.tar.gz
+    tar xvfz /var/tmp/rtcr-0.3.7.tar.gz
 
 3.  Copy files from within the resulting rtcr directory as follows:
 

@@ -10,9 +10,13 @@ PARTICULAR PURPOSE.  See the GNU General Public License for more details.
 
                      Installer for Realtime Clientraw
 
-Version: 0.3.6                                        Date: 24 March 2023
+Version: 0.3.7                                        Date: 31 August 2023
 
 Revision History
+    31 August 2023      v0.3.7
+        - comment out rtcr_path config option so that default (HTML_ROOT) is
+          used for new installs
+        - tidied up rtcr_path comments
     24 March 2023       v0.3.6
         -   config for installer is now derived from a multiline string for
             easy modification of config settings and to allow embedded comments
@@ -52,7 +56,7 @@ from six.moves import StringIO
 import weewx
 
 REQUIRED_VERSION = "4.5.0"
-RTCR_VERSION = "0.3.6"
+RTCR_VERSION = "0.3.7"
 
 # Multi-line config string, makes it easier to include comments. Needs to be
 # explicitly set as unicode or python2 StringIO complains.
@@ -60,9 +64,9 @@ rtcr_config = u"""
 [RealtimeClientraw]
 
     # Path to clientraw.txt. Can be an absolute or relative path. Relative
-    # paths are relative to ????. Optional, default setting is to use
-    # ????.
-    rtcr_path = /home/weewx/public_html
+    # paths are relative to HTML_ROOT. Optional, default setting is to use
+    # HTML_ROOT.
+    # rtcr_path = /home/weewx/public_html
 
     # If using an external website, configure remote_server_url to point to 
     # the post_clientraw.php script on your website like:

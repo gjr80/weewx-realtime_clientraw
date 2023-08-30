@@ -119,7 +119,7 @@ weewx.conf as follows:
         # Path to clientraw.txt. Can be an absolute or relative path. Relative
         # paths are relative to HTML_ROOT. Optional, default setting is to use
         # HTML_ROOT.
-        rtcr_path = /home/weewx/public_html
+        # rtcr_path = /home/weewx/public_html
 
         # Remote URL to which the clientraw.txt data will be posted via HTTP
         # POST. Optional, omit to disable HTTP POST. Format is
