@@ -116,76 +116,42 @@ weewx.conf as follows:
 [WeewxSaratoga]
     ....
     [[RealtimeClientraw]]
+
         # Path to clientraw.txt. Can be an absolute or relative path. Relative
         # paths are relative to HTML_ROOT. Optional, default setting is to use
         # HTML_ROOT.
         # rtcr_path = /home/weewx/public_html
 
-        # Remote URL to which the clientraw.txt data will be posted via HTTP
-        # POST. Optional, omit to disable HTTP POST. Format is
-        # http://remote/address
-        remote_server_url =
+        # If using an external website, configure remote_server_url to point to
+        # the post_clientraw.php script on your website like:
+        #   remote_server_url = http://your.website.com/post_clientraw.php
+        #
+        # To disable or use the webserver on this system, leave the entry
+        # commented out or blank.
+        # remote_server_url = http://your.website.com/post_clientraw.php
 
-        # timeout in seconds for remote URL posts. Optional, default is 2
-        timeout = 2
+        # min_interval sets the minimum clientraw.txt generation interval.
+        # 10 seconds is recommended for all Saratoga template users. Default
+        # is 0 seconds.
+        min_interval = 10
 
-        # Minimum interval (seconds) between file generation. Ideally
-        # clientraw.txt would be generated on receipt of every loop packet (there
-        # is no point in generating more frequently than this); however, in some
-        # cases the user may wish to generate clientraw.txt less frequently. The
-        # min_interval option sets the minimum time between successive
-        # clientraw.txt generations. Generation will be skipped on arrival of a
-        # loop packet if min_interval seconds have NOT elapsed since the last
-        # generation. If min_interval is 0 or omitted generation will occur on
-        # every loop packet (as will be the case if min_interval < station loop
-        period). Optional, default is 0.
-        min_interval = 0
+        # Python date-time format strings. Format string codes as per
+        # https://docs.python.org/3/library/datetime.html#strftime-and-strptime-format-codes
 
-        # If using an external website it may be advantageous to disable the
-        # local save of clientraw.txt to prevent contention on the external web
-        # server. The local save of clientraw.txt can be disabled by use of the
-        # disable_local_save option. Set to True to disable or False to enable
-        # the local save of clientraw.txt. Optional, default is False.
-        # disable_local_save = False
+        # Date format. Recommended entries are:
+        #   date_format = %-m/%-d/%Y  # recommended for USA users
+        #   date_format = %-d/%-m/%Y  # recommended for non-USA users
+        date_format = %-d/%-m/%Y
 
-        # Update windrun value each loop period or just on each archive period.
-        # Optional, default is False.
-        windrun_loop = false
+        # Long format times (HMS). Recommended entries are:
+        #   long_time_format = %-I:%M:%S_%p  # recommended for USA users
+        #   long_time_format = %H:%M:%S  # recommended for non-USA users
+        long_time_format = %H:%M:%S
 
-        # Stations that provide partial packets are supported through a cache that
-        # caches packet data. max_cache_age is the maximum age  in seconds for
-        # which cached data is retained. Optional, default is 600 seconds.
-        max_cache_age = 600
-
-        # Period in seconds over which average wind speed is calculated.
-        # Optional, default is 300.
-        avgspeed_period = 300
-
-        # Period in seconds over which gust speed is calculated. Optional,
-        # default is 300.
-        gust_period = 300
-
-        # Period in seconds over which to calculate trends. Anecdotally,
-        # clientraw.txt appears to use 1 hour for each but barometer trends are
-        # commonly calculated over a 3 hour period. Optional, default is 3600.
-        baro_trend_period = 3600
-        temp_trend_period = 3600
-        humidity_trend_period = 3600
-        humidex_trend_period = 3600
-
-        # When searching for a previous record the largest difference in time
-        # in seconds for which a record is considered a match. Optional,
-        # default is 200.
-        grace = 200
-
-        # By default WeeWX sets wind direction to None when wind speed is 0
-        # (this behaviour can be overridden using the WeeWX force_null
-        # option [http://weewx.com/docs/usersguide.htm#force_null]. This
-        # behaviour may cause problems with machinery that processes clientraw
-        # data and expects wind direction to always exist.
-        # null_dir = N
-        # null_dir = 0
-        null_dir = last
+        # Short format times (HM). Recommended entries are:
+        #   short_time_format = %-I:%M_%p  # recommended for USA users
+        #   short_time_format = %H:%M  # recommended for non-USA users
+        short_time_format = %H:%M
 
 3.  If this service is not being used as part of the WeeWX-Saratoga extension
 add a [RealtimeClientraw] stanza to weewx.conf containing the settings at
