@@ -3,15 +3,13 @@
 
 # Realtime *clientraw* Extension
 
-**Note:** If *clientraw.txt* is intended for use with the Saratoga Weather Website templates the [*WeeWX-Saratoga extension*](https://github.com/gjr80/weewx-saratoga) should be used rather than the *Realtime clientraw extension*. The *WeeWX-Saratoga extension* includes the *Realtime clientraw extension* as well as the generation of a number of other data files used by the Saratoga Weather Website templates.
-
 The *Realtime clientraw extension* is a WeeWX extension that generates a loop data based *clientraw.txt* file for near realtime updating of the [Saratoga Weather Website templates](http://saratoga-weather.org/wxtemplates/index.php "Free Weather Website Templates") dashboards. *clientraw.txt* may also be used by some other applications for near realtime display of weather related data (eg updating Weather Display Live).
 
-Unlike WeeWX template based generation of *clientraw.txt*, the *Realtime clientraw extension* uses a custom WeeWX service to generate a near realtime *clientraw.txt* based on loop packet data.  
+Unlike WeeWX template based generation of *clientraw.txt*, the *Realtime clientraw extension* uses a custom WeeWX service, known as the `Realtime clientraw service` to generate a near realtime *clientraw.txt* based on loop packet data.  
 
 **Note:** The Saratoga dashboards include the standard dashboard included in the Saratoga Weather Website templates and the so-called Alternate dashboard. Use of the term *Saratoga dashboards* in this repository is taken to mean both the standard dashboard included in the Saratoga Weather Website templates and the so-called Alternate dashboard.  
 
-**Note:** Whilst *clientraw.txt* can be used for a number of purposes other than near realtime updates of the Saratoga dashboards, the *Realtime clientraw extension* has been developed solely for updating the Saratoga dashboards. As such some *clientraw.txt* fields not used by the Saratoga dashboards have not been populated and consequently the *Realtime clientraw extension* generated *clientraw.txt* may not be suitable for these other purposes. The initial comments in the *rtcr.py* file detail the *clientraw.txt* fields that are not populated.
+**Note:** Whilst *clientraw.txt* can be used for a number of purposes other than near realtime updates of the Saratoga dashboards, the *Realtime clientraw extension* has been developed with a focus on updating the Saratoga dashboards. As such some *clientraw.txt* fields not used by the Saratoga dashboards have not been populated and consequently the *Realtime clientraw extension* generated *clientraw.txt* may not be suitable for these other purposes. The initial comments in the *rtcr.py* file detail the *clientraw.txt* fields that are not populated.
 
 **Note:** The *Realtime clientraw extension* generates *clientraw.txt* upon receipt of each loop packet. As such the definition of _near realtime_ is very much dependent on the period between successive loop packets. The period between successive loop packets is normally a limitation of either the station hardware or driver or both.
 
